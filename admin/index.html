@@ -321,6 +321,41 @@
     .login-box img{width:180px;}
   }
 
+  /* ---------- Campana de notificaciones ---------- */
+  .campana{position:fixed; top:16px; right:20px; z-index:60; width:48px; height:48px; border-radius:50%;
+    border:1px solid var(--line); background:var(--card); color:var(--ink); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; box-shadow:0 6px 20px -10px rgba(74,68,68,.35);
+    transition:transform .15s cubic-bezier(.23,1,.32,1), border-color .15s;}
+  .campana:hover{border-color:var(--rose-deep);}
+  .campana:active{transform:scale(.94);}
+  .campana svg{width:22px; height:22px;}
+  .campana.con-nuevas svg{animation:sacudir 1.2s cubic-bezier(.23,1,.32,1) 1;}
+  @keyframes sacudir{0%,100%{transform:rotate(0)}15%{transform:rotate(14deg)}30%{transform:rotate(-12deg)}45%{transform:rotate(8deg)}60%{transform:rotate(-5deg)}}
+  .campana-num{position:absolute; top:-4px; right:-4px; min-width:22px; height:22px; padding:0 6px; border-radius:11px;
+    background:#B3452C; color:#fff; font-size:12px; font-weight:500; display:flex; align-items:center; justify-content:center; border:2px solid var(--card);}
+  .campana-num[hidden]{display:none;}
+  .notif-panel{position:fixed; top:72px; right:20px; z-index:60; width:min(400px, calc(100vw - 32px)); max-height:min(560px, calc(100vh - 100px));
+    display:flex; flex-direction:column; background:var(--card); border:1px solid var(--line); box-shadow:0 24px 60px -24px rgba(74,68,68,.45);}
+  .notif-panel[hidden]{display:none;}
+  .notif-head{display:flex; justify-content:space-between; align-items:center; padding:16px 18px; border-bottom:1px solid var(--line);}
+  .notif-head h3{font-size:20px; margin:0;}
+  .notif-head button{background:none; border:none; cursor:pointer; color:var(--ink-soft); font-size:22px; width:44px; height:44px;}
+  .notif-lista{overflow-y:auto; padding:6px 0;}
+  .notif-item{display:flex; gap:12px; width:100%; text-align:left; background:none; border:none; border-bottom:1px solid var(--line);
+    padding:14px 18px; cursor:pointer; font-family:inherit; color:var(--ink); font-size:14px; line-height:1.45;}
+  .notif-item:hover{background:#FBF7F4;}
+  .notif-item.nueva{background:#FFF6F3;}
+  .notif-item .ico{flex-shrink:0; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:600;}
+  .notif-item .ico.ok{background:#E8F0E5; color:#4F7942;}
+  .notif-item .ico.no{background:#FBEFED; color:#B3452C;}
+  .notif-item .ico.alerta{background:#B3452C; color:#fff;}
+  .notif-item small{display:block; color:var(--ink-soft); font-size:12px; margin-top:3px;}
+  .notif-item .accion{display:block; color:var(--rose-deep); font-size:12px; margin-top:4px; font-weight:500;}
+  .notif-vacia{padding:28px 18px; color:var(--ink-soft); font-size:14px; text-align:center;}
+  @media (min-width:821px){ .section-head, .ex-head{padding-right:60px;} }
+  @media (max-width:820px){ .campana{top:14px; right:14px;} .notif-panel{right:16px; top:70px;} }
+  @media (prefers-reduced-motion:reduce){ .campana.con-nuevas svg{animation:none;} }
+
   /* ---------- Exámenes ---------- */
   .ex-card{background:var(--card); border:1px solid var(--line); padding:24px 26px; margin-bottom:22px; box-shadow:0 2px 20px -10px rgba(201,143,138,.18);}
   .ex-card h3{font-size:22px; margin-bottom:4px;}
@@ -395,6 +430,14 @@
 
 <!-- ===================== APP ===================== -->
 <div id="app">
+  <button id="campana" class="campana" type="button" aria-label="Notificaciones" aria-expanded="false" aria-controls="notif-panel" onclick="toggleNotificaciones()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+    <span class="campana-num" id="campana-num" hidden></span>
+  </button>
+  <div id="notif-panel" class="notif-panel" role="dialog" aria-label="Notificaciones" hidden>
+    <div class="notif-head"><h3>Notificaciones</h3><button type="button" aria-label="Cerrar" onclick="toggleNotificaciones(false)">×</button></div>
+    <div class="notif-lista" id="notif-lista"></div>
+  </div>
   <div class="shell">
     <aside>
       <img class="logo" src="../img/logo-loto.png" alt="Instituto Mariana Barrera">
@@ -559,7 +602,7 @@ function tiempoMaximo(action) {
 
 async function api(action, payload) {
   // Las acciones que guardan, suben o borran bloquean la pantalla hasta terminar
-  const esEscritura = action !== 'login' && !/^get/.test(action);
+  const esEscritura = action !== 'login' && action !== 'marcarNotificacionesLeidas' && !/^get/.test(action);
   if (esEscritura) {
     if (operacionEnCurso) throw new Error('Esperá a que termine la operación anterior.');
     operacionEnCurso = true;
@@ -712,6 +755,7 @@ function alumnoNombre(id) { const a = DATA.alumnos.find(x => String(x.ID_Alumno)
 function renderAll() {
   cargarFiltrosAdmin();
   renderCursos(); renderClases(); renderAlumnos(); renderInscripciones(); renderCertificados(); renderPreguntas(); renderExamenes();
+  actualizarCampana();
 }
 
 function switchTab(tab) {
@@ -1087,14 +1131,138 @@ function renderCertificados() {
 let examenCursoSel = null;   // curso abierto en la pestaña Exámenes
 
 function guardarDatosExamenes(r) {
+  if (r && r.notifVisto !== undefined) DATA.notifVisto = Number(r.notifVisto) || 0;
   DATA.examenes = (r && r.examenes) || [];
   DATA.preguntasEx = (r && r.preguntas) || [];
   DATA.resultadosEx = (r && r.resultados) || [];
 }
 async function recargarExamenes() {
   try { guardarDatosExamenes(await api('getExamenes', {})); } catch (e) { showToast('Error cargando exámenes: ' + e.message, true); }
-  renderExamenes(); renderInscripciones();
+  renderExamenes(); renderInscripciones(); actualizarCampana();
 }
+
+/* ============================================================
+   CAMPANA DE NOTIFICACIONES
+   Avisa cuando un alumno termina el examen final. Cada administrador
+   tiene sus propias notificaciones leídas (se guardan en el servidor).
+   ============================================================ */
+const NOTIF_DIAS = 30;                       // se muestran los últimos 30 días
+let notifVistoAlAbrir = 0;                   // para resaltar las nuevas mientras el panel está abierto
+
+function fechaMs(v) {
+  if (!v) return 0;
+  const d = new Date(String(v).replace(' ', 'T'));
+  return isNaN(d.getTime()) ? 0 : d.getTime();
+}
+
+function armarNotificaciones() {
+  const desde = Date.now() - NOTIF_DIAS * 24 * 3600 * 1000;
+  return DATA.resultadosEx
+    .filter(r => String(r.Estado) !== 'En curso' && fechaMs(r.Fin) >= desde)
+    .map(r => {
+      const ex = DATA.examenes.find(x => String(x.ID_Examen) === String(r.ID_Examen));
+      const insc = DATA.inscripciones.find(i => String(i.ID_Alumno) === String(r.ID_Alumno) && String(i.ID_Curso) === String(r.ID_Curso));
+      const total = (Number(ex && ex.Intentos_Max) || 0) + (Number(insc && insc.Intentos_Extra) || 0);
+      const aprobo = esSi(r.Aprobado);
+      const sinIntentos = !aprobo && total && Number(r.Intento) >= total;
+      const alumno = alumnoNombre(r.ID_Alumno), curso = cursoNombre(r.ID_Curso);
+      let tipo, ico, texto, accion;
+      if (aprobo) {
+        tipo = 'ok'; ico = '✓';
+        texto = `<strong>${alumno}</strong> aprobó el examen de <strong>${curso}</strong> (${esc(r.Puntaje)}%)`;
+        accion = 'Ver inscripción → cargar práctico / certificado';
+      } else if (sinIntentos) {
+        tipo = 'alerta'; ico = '!';
+        texto = `<strong>${alumno}</strong> no aprobó el examen de <strong>${curso}</strong> y usó todos sus intentos (${esc(r.Puntaje)}%)`;
+        accion = 'Ver inscripción → dar un intento extra';
+      } else {
+        tipo = 'no'; ico = '✕';
+        texto = `<strong>${alumno}</strong> no aprobó el examen de <strong>${curso}</strong> (${esc(r.Puntaje)}%, intento ${esc(r.Intento)} de ${total || '?'})`;
+        accion = 'Ver inscripción';
+      }
+      return { ms: fechaMs(r.Fin), tipo, ico, texto, accion, alumno: String(r.ID_Alumno), curso: String(r.ID_Curso) };
+    })
+    .sort((a, b) => b.ms - a.ms)
+    .slice(0, 50);
+}
+
+function actualizarCampana() {
+  const nuevas = armarNotificaciones().filter(n => n.ms > (DATA.notifVisto || 0)).length;
+  const num = document.getElementById('campana-num');
+  const campana = document.getElementById('campana');
+  if (!num || !campana) return;
+  const antes = Number(num.dataset.valor || 0);
+  num.hidden = !nuevas;
+  num.textContent = nuevas > 9 ? '9+' : String(nuevas);
+  num.dataset.valor = String(nuevas);
+  campana.setAttribute('aria-label', nuevas ? `Notificaciones: ${nuevas} nuevas` : 'Notificaciones');
+  if (nuevas > antes) { campana.classList.remove('con-nuevas'); void campana.offsetWidth; campana.classList.add('con-nuevas'); }
+  if (!document.getElementById('notif-panel').hidden) renderNotificaciones();
+}
+
+function renderNotificaciones() {
+  const lista = armarNotificaciones();
+  document.getElementById('notif-lista').innerHTML = lista.length ? lista.map((n, i) => `
+    <button type="button" class="notif-item ${n.ms > notifVistoAlAbrir ? 'nueva' : ''}" onclick="abrirNotificacion(${i})">
+      <span class="ico ${n.tipo}" aria-hidden="true">${n.ico}</span>
+      <span>${n.texto}<small>${esc(fechaHoraAdmin(new Date(n.ms).toISOString()))}</small><span class="accion">${n.accion}</span></span>
+    </button>`).join('')
+    : `<div class="notif-vacia">No hay novedades de los últimos ${NOTIF_DIAS} días.<br>Acá vas a ver cuando un alumno termine su examen final.</div>`;
+  renderNotificaciones.lista = lista;
+}
+
+async function toggleNotificaciones(abrir) {
+  const panel = document.getElementById('notif-panel');
+  const mostrar = abrir === undefined ? panel.hidden : abrir;
+  panel.hidden = !mostrar;
+  document.getElementById('campana').setAttribute('aria-expanded', String(mostrar));
+  if (!mostrar) return;
+  notifVistoAlAbrir = DATA.notifVisto || 0;
+  renderNotificaciones();
+  // Al abrir, quedan todas como leídas (siguen resaltadas mientras el panel está abierto)
+  const hayNuevas = armarNotificaciones().some(n => n.ms > notifVistoAlAbrir);
+  if (hayNuevas) {
+    try { const r = await api('marcarNotificacionesLeidas', {}); DATA.notifVisto = Number(r.notifVisto) || Date.now(); }
+    catch (e) { DATA.notifVisto = Date.now(); }
+    const num = document.getElementById('campana-num'); num.hidden = true; num.dataset.valor = '0';
+    document.getElementById('campana').setAttribute('aria-label', 'Notificaciones');
+  }
+}
+
+function abrirNotificacion(i) {
+  const n = (renderNotificaciones.lista || [])[i];
+  toggleNotificaciones(false);
+  if (!n) return;
+  switchTab('inscripciones');
+  const fa = document.getElementById('filtro-insc-alumno'), fc = document.getElementById('filtro-insc-curso');
+  if (fa) fa.value = n.alumno;
+  if (fc) fc.value = n.curso;
+  renderInscripciones();
+  window.scrollTo(0, 0);
+}
+
+// Cerrar con Escape o tocando afuera
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !document.getElementById('notif-panel').hidden) toggleNotificaciones(false); });
+document.addEventListener('click', e => {
+  const panel = document.getElementById('notif-panel');
+  if (!panel.hidden && !panel.contains(e.target) && !document.getElementById('campana').contains(e.target)) toggleNotificaciones(false);
+});
+
+// Se actualiza sola: cada 2 minutos y cada vez que se vuelve a la pestaña
+let ultimaConsultaNotif = Date.now();
+async function refrescarNotificaciones() {
+  if (!getToken() || operacionEnCurso || document.visibilityState !== 'visible') return;
+  if (Date.now() - ultimaConsultaNotif < 45000) return;
+  ultimaConsultaNotif = Date.now();
+  try {
+    guardarDatosExamenes(await api('getExamenes', {}));
+    actualizarCampana();
+    const formAbierto = document.getElementById('form-panel').style.display === 'block';
+    if (currentTab === 'inscripciones' && !formAbierto) renderInscripciones();
+  } catch (e) { /* se reintenta en la próxima vuelta */ }
+}
+setInterval(refrescarNotificaciones, 2 * 60 * 1000);
+document.addEventListener('visibilitychange', refrescarNotificaciones);
 function examenDeCurso(idCurso) { return DATA.examenes.find(x => String(x.ID_Curso) === String(idCurso)) || null; }
 function preguntasDeExamen(idExamen) {
   return DATA.preguntasEx.filter(p => String(p.ID_Examen) === String(idExamen))
