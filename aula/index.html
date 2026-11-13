@@ -372,7 +372,11 @@
   }
 
   .btn-login:disabled{opacity:.6; cursor:wait;}
-  .login-volver{display:inline-flex; align-items:center; min-height:44px; margin-top:14px; font-size:13px; color:var(--ink-soft); text-decoration:underline; text-underline-offset:3px;}
+  .link-olvide{display:inline-flex; align-items:center; justify-content:center; min-height:44px; margin-top:10px; background:none; border:none; cursor:pointer;
+    font-family:'Jost',sans-serif; font-size:13.5px; color:var(--rose-deep); text-decoration:underline; text-underline-offset:3px;}
+  .login-texto{font-size:14.5px; color:var(--ink-soft); line-height:1.6; margin:0 0 18px;}
+  .login-ok{color:#3F6B45 !important;}
+  .login-volver{display:flex; justify-content:center; align-items:center; min-height:44px; margin-top:6px; font-size:13px; color:var(--ink-soft); text-decoration:underline; text-underline-offset:3px;}
 
   /* ---------- EXAMEN FINAL ---------- */
   .tarjeta-examen{
@@ -514,11 +518,31 @@
     <img class="login-logo" src="../img/logo-completo.png" alt="Instituto Mariana Barrera">
     <h1>Mariana Barrera</h1>
     <div class="sub">Aula Virtual</div>
-    <input id="login-email" type="email" placeholder="Email" autocomplete="username" autocapitalize="off">
-    <input id="login-pass" type="password" placeholder="Contraseña" autocomplete="current-password">
-    <div class="login-error" id="login-error"></div>
-    <button class="btn-login" id="btn-login" onclick="doLogin()">Ingresar</button>
-    <a class="login-volver" href="../">← Ver el catálogo de cursos</a>
+    <div id="vista-ingreso">
+      <input id="login-email" type="email" placeholder="Email" autocomplete="username" autocapitalize="off">
+      <input id="login-pass" type="password" placeholder="Contraseña" autocomplete="current-password">
+      <div class="login-error" id="login-error" role="alert"></div>
+      <button class="btn-login" id="btn-login" onclick="doLogin()">Ingresar</button>
+      <button type="button" class="link-olvide" onclick="mostrarVistaLogin('recuperar')">¿Olvidaste tu contraseña?</button>
+      <a class="login-volver" href="../">← Ver el catálogo de cursos</a>
+    </div>
+
+    <div id="vista-recuperar" hidden>
+      <p class="login-texto">Escribí tu mail y te enviamos un link para crear una contraseña nueva.</p>
+      <input id="rec-email" type="email" placeholder="Email" autocomplete="username" autocapitalize="off">
+      <div class="login-error" id="rec-msg" role="alert"></div>
+      <button class="btn-login" id="btn-rec" onclick="pedirNuevaClave()">Enviar link</button>
+      <button type="button" class="link-olvide" onclick="mostrarVistaLogin('ingreso')">← Volver a ingresar</button>
+    </div>
+
+    <div id="vista-nueva" hidden>
+      <p class="login-texto">Elegí tu contraseña nueva. Tiene que tener al menos 6 caracteres.</p>
+      <input id="nueva-pass" type="password" placeholder="Contraseña nueva" autocomplete="new-password">
+      <input id="nueva-pass2" type="password" placeholder="Repetí la contraseña" autocomplete="new-password">
+      <div class="login-error" id="nueva-msg" role="alert"></div>
+      <button class="btn-login" id="btn-nueva" onclick="guardarNuevaClave()">Guardar y entrar</button>
+      <button type="button" class="link-olvide" onclick="mostrarVistaLogin('recuperar')">Pedir un link nuevo</button>
+    </div>
   </div>
 </div>
 
@@ -643,6 +667,69 @@
       btn.disabled = false; btn.textContent = 'Ingresar';
     }
   }
+
+  /* ---------- Olvidé mi contraseña ---------- */
+
+  function mostrarVistaLogin(cual) {
+    ['ingreso', 'recuperar', 'nueva'].forEach(v => { document.getElementById('vista-' + v).hidden = v !== cual; });
+    if (cual === 'recuperar') {
+      const rec = document.getElementById('rec-email');
+      if (!rec.value) rec.value = document.getElementById('login-email').value.trim();
+      document.getElementById('rec-msg').textContent = '';
+      document.getElementById('rec-msg').classList.remove('login-ok');
+      document.getElementById('btn-rec').hidden = false;
+      rec.focus();
+    }
+    if (cual === 'ingreso') document.getElementById('login-email').focus();
+    if (cual === 'nueva') document.getElementById('nueva-pass').focus();
+  }
+
+  async function pedirNuevaClave() {
+    const email = document.getElementById('rec-email').value.trim();
+    const msg = document.getElementById('rec-msg');
+    const btn = document.getElementById('btn-rec');
+    msg.classList.remove('login-ok');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.textContent = 'Escribí un mail válido.'; return; }
+    btn.disabled = true; btn.textContent = 'Enviando…'; msg.textContent = '';
+    try {
+      const r = await api('pedirNuevaClave', { email, urlAula: location.origin + location.pathname });
+      if (r.error) throw new Error(r.error);
+      msg.classList.add('login-ok');
+      msg.textContent = 'Listo. Si ese mail está registrado, en unos minutos te llega un correo con el link (revisá también la carpeta de Spam). El link vale por 1 hora.';
+      btn.hidden = true;
+    } catch (e) {
+      msg.textContent = e instanceof TypeError ? 'No se pudo conectar. Revisá tu internet y probá de nuevo.' : e.message;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Enviar link';
+    }
+  }
+
+  let tokenNuevaClave = '';
+  async function guardarNuevaClave() {
+    const p1 = document.getElementById('nueva-pass').value.trim();
+    const p2 = document.getElementById('nueva-pass2').value.trim();
+    const msg = document.getElementById('nueva-msg');
+    const btn = document.getElementById('btn-nueva');
+    if (p1.length < 6) { msg.textContent = 'La contraseña tiene que tener al menos 6 caracteres.'; return; }
+    if (p1 !== p2) { msg.textContent = 'Las dos contraseñas no coinciden.'; return; }
+    btn.disabled = true; btn.textContent = 'Guardando…'; msg.textContent = '';
+    try {
+      const r = await api('restablecerClave', { token: tokenNuevaClave, password: p1 });
+      if (r.error) throw new Error(r.error);
+      if (!r.success || !r.token) throw new Error('No se pudo guardar. Probá de nuevo.');
+      history.replaceState(null, '', location.pathname + location.search);
+      sessionStorage.setItem('alumno_token', r.token);
+      sessionStorage.setItem('alumno_nombre', (r.alumno && r.alumno.Nombre) || '');
+      mostrarApp(r);
+    } catch (e) {
+      msg.textContent = e instanceof TypeError ? 'No se pudo conectar. Revisá tu internet y probá de nuevo.' : e.message;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Guardar y entrar';
+    }
+  }
+
+  ['rec-email'].forEach(id => document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') pedirNuevaClave(); }));
+  ['nueva-pass', 'nueva-pass2'].forEach(id => document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') guardarNuevaClave(); }));
 
   // Panel del administrador: mismo login, otro servidor
   const ADMIN_API_URL = 'https://script.google.com/macros/s/AKfycbzyGiSnozdfWIIVSy1PY25WqgGS1l8MSssblAv3diG31t_TOCeap_YO-jfeSg7TIY2Q/exec';
@@ -1503,7 +1590,19 @@
   });
 
   // Si ya había una sesión activa, entra directo (el servidor valida el token)
-  if (sessionStorage.getItem('alumno_token')) { mostrarApp(); }
+  // Si llegó desde el link del mail, primero crea la contraseña nueva
+  function revisarEnlaceClave() {
+    const m = location.hash.match(/^#restablecer=([^&]+)/);
+    if (!m) return false;
+    tokenNuevaClave = decodeURIComponent(m[1]);
+    sessionStorage.removeItem('alumno_token');
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('login-screen').style.display = 'flex';
+    mostrarVistaLogin('nueva');
+    return true;
+  }
+  window.addEventListener('hashchange', revisarEnlaceClave);
+  if (!revisarEnlaceClave() && sessionStorage.getItem('alumno_token')) { mostrarApp(); }
 </script>
 
 </body>
