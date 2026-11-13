@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /aula/
+Disallow: /admin/
+
+Sitemap: https://academia.institutomarianabarrera.com.ar/sitemap.xml
