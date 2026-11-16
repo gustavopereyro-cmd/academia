@@ -456,6 +456,7 @@
       <button class="nav-btn" data-tab="examenes" onclick="switchTab('examenes')">Exámenes</button>
       <button class="nav-btn" data-tab="certificados" onclick="switchTab('certificados')">Certificados</button>
       <button class="nav-btn" data-tab="preguntas" onclick="switchTab('preguntas')">Preguntas frecuentes</button>
+      <button class="logout" onclick="actualizarManual()" title="Vuelve a leer todo de la planilla">↻ Actualizar datos</button>
       <button class="logout" onclick="logout()">Cerrar sesión</button>
     </aside>
 
@@ -652,8 +653,14 @@ async function api(action, payload) {
   }
   if (json && json.error) {
     // Si alguien cambió los datos mientras tanto, refrescar la lista
-    if (/cambiaron|ya no existe/i.test(json.error)) setTimeout(loadAll, 0);
+    if (/cambiaron|ya no existe/i.test(json.error)) setTimeout(() => loadAll({ fresco: true }), 0);
     throw new Error(json.error);
+  }
+  // Después de guardar, el servidor devuelve lo que cambió: se aplica sin volver a pedir todo
+  if (json && json.datos && typeof json.datos === 'object') {
+    const errores = aplicarTodo(json.datos);
+    // Si alguna parte no vino bien, la próxima carga la pide completa
+    datosFrescosEn = Object.keys(errores).length ? 0 : Date.now();
   }
   return json;
 }
@@ -730,7 +737,7 @@ function mostrarErrorCarga(mensajes) {
   if (!mensajes || !mensajes.length) { el.remove(); return; }
   el.innerHTML = `<div><strong>No se pudieron cargar algunos datos.</strong><br>${mensajes.map(esc).join('<br>')}
     <br><span style="color:#726B69;font-size:12.5px">Si vuelve a pasar, sacale una captura a este cartel y mandásela a soporte.</span></div>
-    <button class="btn btn-secondary btn-small" onclick="loadAll()">Reintentar</button>`;
+    <button class="btn btn-secondary btn-small" onclick="loadAll({ fresco: true })">Reintentar</button>`;
 }
 
 async function conReintento(fn) {
@@ -742,23 +749,34 @@ async function conReintento(fn) {
   }
 }
 
-async function loadAll() {
+var datosFrescosEn = 0;   // cuándo llegaron datos nuevos junto con un guardado
+
+/* Aplica a DATA las partes que vinieron (todas o solo las que cambiaron) */
+function aplicarTodo(todo) {
+  const errores = todo.errores || {};
+  const vino = k => (k in todo) && !(k in errores) && todo[k] !== undefined && todo[k] !== null;
+  if (vino('examenes')) guardarDatosExamenes(todo.examenes);
+  if (vino('avance')) DATA.avance = Array.isArray(todo.avance) ? todo.avance : [];
+  ['preguntas', 'cursos', 'clases', 'materiales', 'alumnos', 'inscripciones', 'egresados', 'alumnosConCursos']
+    .forEach(k => { if (vino(k)) DATA[k] = todo[k]; });
+  return errores;
+}
+
+async function loadAll(opciones) {
+  const fresco = !!(opciones && opciones.fresco);
+  // Si un guardado acaba de traer los datos nuevos, no hace falta pedir todo otra vez
+  if (!fresco && Date.now() - datosFrescosEn < 5000) { renderAll(); return; }
   if (cargando) return;
   cargando = true;
   try {
     let todo;
     try {
-      todo = await conReintento(() => api('getTodo', {}));
+      todo = await conReintento(() => api('getTodo', fresco ? { fresco: true } : {}));
     } catch (e) {
       if (!/Acción no reconocida/i.test(e.message)) throw e;
       todo = await cargarPorPartes();            // servidor viejo, sin getTodo
     }
-    const errores = todo.errores || {};
-    const aplicar = (k, v) => { if (!(k in errores) && v !== undefined) DATA[k] = v; };
-    if (!('examenes' in errores) && todo.examenes) guardarDatosExamenes(todo.examenes);
-    if (!('avance' in errores)) DATA.avance = Array.isArray(todo.avance) ? todo.avance : [];
-    ['preguntas', 'cursos', 'clases', 'materiales', 'alumnos', 'inscripciones', 'egresados', 'alumnosConCursos']
-      .forEach(k => aplicar(k, todo[k]));
+    const errores = aplicarTodo(todo);
     renderAll();
     mostrarErrorCarga(Object.keys(errores).map(k => (NOMBRES_PARTES[k] || k) + ': ' + errores[k]));
   } catch (e) {
@@ -767,6 +785,11 @@ async function loadAll() {
   } finally {
     cargando = false;
   }
+}
+
+async function actualizarManual() {
+  await loadAll({ fresco: true });
+  showToast('Datos actualizados.');
 }
 
 async function cargarPorPartes() {
@@ -893,8 +916,9 @@ function cursosEnOrden() {
 
 async function moverCurso(row, direccion) {
   try {
-    await api('moverCurso', { row, expect: expectDe('cursos', row), direccion });
-    // Se aplica el mismo cambio en pantalla (sin volver a pedir todo al servidor)
+    const r = await api('moverCurso', { row, expect: expectDe('cursos', row), direccion });
+    if (r && r.datos && r.datos.cursos) { renderCursos(); showToast('Orden actualizado. El catálogo ya lo muestra así.'); return; }
+    // Servidor viejo: se aplica el mismo cambio en pantalla
     const lista = cursosEnOrden();
     const i = lista.findIndex(c => c._row === row);
     const j = direccion === 'arriba' ? i - 1 : i + 1;
@@ -1246,7 +1270,9 @@ function guardarDatosExamenes(r) {
   DATA.resultadosEx = (r && r.resultados) || [];
 }
 async function recargarExamenes() {
-  try { guardarDatosExamenes(await api('getExamenes', {})); } catch (e) { showToast('Error cargando exámenes: ' + e.message, true); }
+  if (Date.now() - datosFrescosEn >= 5000) {
+    try { guardarDatosExamenes(await api('getExamenes', {})); } catch (e) { showToast('Error cargando exámenes: ' + e.message, true); }
+  }
   renderExamenes(); renderInscripciones(); actualizarCampana();
 }
 
