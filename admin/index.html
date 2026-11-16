@@ -321,6 +321,13 @@
     .login-box img{width:180px;}
   }
 
+  /* ---------- Orden de cursos ---------- */
+  .orden-cel{white-space:nowrap;}
+  .orden-num{display:inline-block; min-width:20px; font-weight:500; color:var(--ink-soft); margin-right:4px;}
+  .btn-orden{width:30px; height:32px; padding:0; border:1px solid var(--line); background:var(--card); cursor:pointer; font-size:15px; color:var(--ink); border-radius:2px; vertical-align:middle;}
+  .btn-orden:hover:not(:disabled){border-color:var(--rose-deep); color:var(--rose-deep);}
+  .btn-orden:disabled{opacity:.3; cursor:default;}
+
   /* ---------- Campana de notificaciones ---------- */
   .campana{position:fixed; top:16px; right:20px; z-index:60; width:48px; height:48px; border-radius:50%;
     border:1px solid var(--line); background:var(--card); color:var(--ink); cursor:pointer;
@@ -455,11 +462,11 @@
     <main>
       <section id="tab-cursos">
         <div class="section-head">
-          <div><h1>Cursos</h1><p>Programas publicados en la academia.</p></div>
+          <div><h1>Cursos</h1><p>Programas publicados en la academia. Con las flechas ↑ ↓ elegís el orden en que aparecen en el catálogo.</p></div>
           <button class="btn btn-primary" onclick="openForm('curso')">+ Nuevo curso</button>
         </div>
         <table><thead><tr>
-          <th>Imagen</th><th>ID</th><th>Nombre</th><th>Duración</th><th>Precio ARS</th><th>Precio USD</th><th>Estado</th><th></th>
+          <th title="Orden en que se ven en el catálogo">Orden</th><th>Imagen</th><th>ID</th><th>Nombre</th><th>Duración</th><th>Precio ARS</th><th>Precio USD</th><th>Estado</th><th></th>
         </tr></thead><tbody id="tbody-cursos"></tbody></table>
       </section>
 
@@ -580,6 +587,7 @@ function textoOperacion(action) {
   if (action === 'uploadFile') return 'Subiendo archivo… no cierres esta ventana';
   if (action === 'usarPdfDrive') return 'Preparando el PDF de Drive…';
   if (action === 'emitirPendientes') return 'Emitiendo certificados… puede tardar unos segundos';
+  if (action === 'moverCurso') return 'Cambiando el orden…';
   if (/^add/.test(action)) return 'Guardando…';
   if (/^update/.test(action)) return 'Guardando cambios…';
   if (/^delete/.test(action)) return 'Borrando…';
@@ -845,8 +853,9 @@ function switchTab(tab) {
 
 function renderCursos() {
   const tbody = document.getElementById('tbody-cursos');
-  if (!DATA.cursos.length) { tbody.innerHTML = emptyRow(8, 'Todavía no cargaste ningún curso.'); return; }
-  tbody.innerHTML = DATA.cursos.map(c => {
+  if (!DATA.cursos.length) { tbody.innerHTML = emptyRow(9, 'Todavía no cargaste ningún curso.'); return; }
+  const lista = cursosEnOrden();
+  tbody.innerHTML = lista.map((c, i) => {
     const cerrado = cursoCerrado(c);
     const destacado = String(c.Destacado || '').trim().toLowerCase() === 'si';
     const badge = (cerrado ? '<span class="badge cerrado">Cerrado</span>' : '') +
@@ -856,6 +865,10 @@ function renderCursos() {
       : `<button class="btn btn-secondary btn-small" onclick="cerrarCurso(${c._row})">Cerrar</button>`;
     return `
     <tr>
+      <td class="orden-cel">
+        <button class="btn-orden" aria-label="Subir ${esc(c.Nombre)}" title="Subir" onclick="moverCurso(${c._row}, 'arriba')" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button class="btn-orden" aria-label="Bajar ${esc(c.Nombre)}" title="Bajar" onclick="moverCurso(${c._row}, 'abajo')" ${i === lista.length - 1 ? 'disabled' : ''}>↓</button>
+      </td>
       <td>${c.Imagen_URL ? `<img class="thumb" src="${esc(c.Imagen_URL)}">` : '—'}</td>
       <td>${esc(c.ID_Curso)}</td>
       <td>${esc(c.Nombre)}</td>
@@ -870,6 +883,20 @@ function renderCursos() {
       </td>
     </tr>`;
   }).join('');
+}
+
+/* Orden del catálogo: por la columna Orden; los que no tienen, al final y en el orden de la planilla */
+function cursosEnOrden() {
+  const num = c => { const v = String(c.Orden ?? '').trim(); return v === '' || isNaN(Number(v)) ? Infinity : Number(v); };
+  return DATA.cursos.slice().sort((a, b) => (num(a) - num(b)) || (a._row - b._row));
+}
+
+async function moverCurso(row, direccion) {
+  try {
+    await api('moverCurso', { row, expect: expectDe('cursos', row), direccion });
+    await loadAll();
+    showToast('Orden actualizado. El catálogo ya lo muestra así.');
+  } catch (e) { showToast('No se pudo cambiar el orden: ' + e.message, true); }
 }
 
 function renderClases(){
