@@ -894,7 +894,13 @@ function cursosEnOrden() {
 async function moverCurso(row, direccion) {
   try {
     await api('moverCurso', { row, expect: expectDe('cursos', row), direccion });
-    await loadAll();
+    // Se aplica el mismo cambio en pantalla (sin volver a pedir todo al servidor)
+    const lista = cursosEnOrden();
+    const i = lista.findIndex(c => c._row === row);
+    const j = direccion === 'arriba' ? i - 1 : i + 1;
+    if (i !== -1 && j >= 0 && j < lista.length) { const t = lista[i]; lista[i] = lista[j]; lista[j] = t; }
+    lista.forEach((c, k) => { c.Orden = (k + 1) * 10; });
+    renderCursos();
     showToast('Orden actualizado. El catálogo ya lo muestra así.');
   } catch (e) { showToast('No se pudo cambiar el orden: ' + e.message, true); }
 }
