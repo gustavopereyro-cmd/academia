@@ -597,6 +597,7 @@ function ocultarOcupado() {
 function tiempoMaximo(action) {
   if (action === 'emitirPendientes') return 5 * 60 * 1000;   // 5 minutos
   if (action === 'uploadFile') return 3 * 60 * 1000;         // 3 minutos
+  if (action === 'getTodo') return 90 * 1000;                // 1 minuto y medio
   return 60 * 1000;                                          // 1 minuto
 }
 
@@ -700,7 +701,82 @@ if (getToken()) {
   loadAll();
 }
 
+/* ---------- Carga de datos ----------
+   Pide todo en una sola consulta (getTodo). Si el servidor todavía no la tiene,
+   usa el método anterior. Si algo falla, NO borra lo que ya estaba en pantalla
+   y deja un cartel fijo con el motivo y un botón para reintentar. */
+var NOMBRES_PARTES = { cursos: 'Cursos', clases: 'Clases', materiales: 'Materiales', alumnos: 'Alumnos',
+  inscripciones: 'Inscripciones', egresados: 'Certificados', alumnosConCursos: 'Alumnos con cursos',
+  preguntas: 'Preguntas frecuentes', avance: 'Avance', examenes: 'Exámenes' };
+var cargando = false;   // "var" porque loadAll se llama apenas abre la página
+
+function mostrarErrorCarga(mensajes) {
+  let el = document.getElementById('error-carga');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'error-carga';
+    el.setAttribute('role', 'alert');
+    el.style.cssText = 'background:#FBEFED;border:1px solid #F0D5D0;color:#8A2E1E;padding:16px 18px;margin:0 0 22px;font-size:14px;line-height:1.55;display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap';
+    document.querySelector('main').prepend(el);
+  }
+  if (!mensajes || !mensajes.length) { el.remove(); return; }
+  el.innerHTML = `<div><strong>No se pudieron cargar algunos datos.</strong><br>${mensajes.map(esc).join('<br>')}
+    <br><span style="color:#726B69;font-size:12.5px">Si vuelve a pasar, sacale una captura a este cartel y mandásela a soporte.</span></div>
+    <button class="btn btn-secondary btn-small" onclick="loadAll()">Reintentar</button>`;
+}
+
+async function conReintento(fn) {
+  try { return await fn(); }
+  catch (e) {
+    if (/sesión venció|Acción no reconocida/i.test(e.message)) throw e;
+    await new Promise(r => setTimeout(r, 1500));
+    return await fn();
+  }
+}
+
 async function loadAll() {
+  if (cargando) return;
+  cargando = true;
+  try {
+    let todo;
+    try {
+      todo = await conReintento(() => api('getTodo', {}));
+    } catch (e) {
+      if (!/Acción no reconocida/i.test(e.message)) throw e;
+      todo = await cargarPorPartes();            // servidor viejo, sin getTodo
+    }
+    const errores = todo.errores || {};
+    const aplicar = (k, v) => { if (!(k in errores) && v !== undefined) DATA[k] = v; };
+    if (!('examenes' in errores) && todo.examenes) guardarDatosExamenes(todo.examenes);
+    if (!('avance' in errores)) DATA.avance = Array.isArray(todo.avance) ? todo.avance : [];
+    ['preguntas', 'cursos', 'clases', 'materiales', 'alumnos', 'inscripciones', 'egresados', 'alumnosConCursos']
+      .forEach(k => aplicar(k, todo[k]));
+    renderAll();
+    mostrarErrorCarga(Object.keys(errores).map(k => (NOMBRES_PARTES[k] || k) + ': ' + errores[k]));
+  } catch (e) {
+    mostrarErrorCarga(['Error al conectar con el servidor: ' + e.message]);
+    showToast('Error cargando datos: ' + e.message, true);
+  } finally {
+    cargando = false;
+  }
+}
+
+async function cargarPorPartes() {
+  const todo = { errores: {} };
+  const pedir = async (k, accion) => {
+    try { todo[k] = await conReintento(() => api(accion, {})); }
+    catch (e) { todo.errores[k] = e.message; }
+  };
+  await Promise.all([
+    pedir('cursos', 'getCursos'), pedir('clases', 'getClases'), pedir('materiales', 'getMateriales'),
+    pedir('alumnos', 'getAlumnos'), pedir('inscripciones', 'getInscripciones'), pedir('egresados', 'getEgresados'),
+    pedir('alumnosConCursos', 'getAlumnosConCursos'), pedir('preguntas', 'getPreguntas'),
+    pedir('avance', 'getAvance'), pedir('examenes', 'getExamenes')
+  ]);
+  return todo;
+}
+
+async function loadAllViejo() {
   try {
     const [cursos, clases, materiales, alumnos, inscripciones, egresados, alumnosConCursos, preguntas, avance, examenes] = await Promise.all([
       api('getCursos', {}), api('getClases', {}), api('getMateriales', {}),
