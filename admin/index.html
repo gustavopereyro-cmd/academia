@@ -2025,15 +2025,73 @@ function fileToBase64(file) {
   });
 }
 
+/* Las imágenes suben directo del navegador a Cloudinary (más rápido y con error claro).
+   Si eso falla por conexión, se intenta por el servidor de Google como antes. */
+const CLOUDINARY_CLOUD = 'zhj0kgnr';
+const CLOUDINARY_PRESET = 'academia_unsigned';
+const MAX_MB_ARCHIVO = 10;
+
+async function subirImagenDirecto(file) {
+  if (operacionEnCurso) throw new Error('Esperá a que termine la operación anterior.');
+  operacionEnCurso = true;
+  mostrarOcupado('Subiendo imagen… no cierres esta ventana');
+  const control = new AbortController();
+  const corte = setTimeout(() => control.abort(), 90 * 1000);
+  try {
+    const nombre = file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 60);
+    const datos = new FormData();
+    datos.append('file', file);
+    datos.append('upload_preset', CLOUDINARY_PRESET);
+    datos.append('public_id', nombre + '_' + Date.now());
+    const res = await fetch('https://api.cloudinary.com/v1_1/' + CLOUDINARY_CLOUD + '/image/upload',
+      { method: 'POST', body: datos, signal: control.signal });
+    let json = {};
+    try { json = await res.json(); } catch (e) { /* respuesta vacía */ }
+    if (!res.ok || !json.secure_url) {
+      const motivo = (json.error && json.error.message) || ('código ' + res.status);
+      const err = new Error('Cloudinary rechazó la imagen: ' + motivo);
+      err.esCloudinary = true;
+      throw err;
+    }
+    return { success: true, url: json.secure_url.replace('/upload/', '/upload/f_auto,q_auto,w_1600/') };
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('La subida tardó demasiado. Revisá tu internet y probá de nuevo.');
+    throw e;
+  } finally {
+    clearTimeout(corte);
+    operacionEnCurso = false;
+    ocultarOcupado();
+  }
+}
+
 async function handleUpload(fieldId, input, isImage) {
   const file = input.files[0];
   if (!file) return;
   const statusEl = document.getElementById(fieldId + '_status');
   statusEl.className = 'upload-status';
+  if (file.size > MAX_MB_ARCHIVO * 1024 * 1024) {
+    statusEl.className = 'upload-status err';
+    statusEl.textContent = 'El archivo pesa ' + (file.size / 1024 / 1024).toFixed(1) + ' MB y el máximo es ' + MAX_MB_ARCHIVO + ' MB. Achicalo y probá de nuevo.';
+    showToast('El archivo es demasiado grande.', true);
+    input.value = '';
+    return;
+  }
   statusEl.textContent = 'Subiendo ' + file.name + '…';
   try {
-    const base64Data = await fileToBase64(file);
-    const result = await api('uploadFile', { fileName: file.name, mimeType: file.type, fileData: base64Data });
+    let result;
+    if (/^image\//.test(file.type)) {
+      try {
+        result = await subirImagenDirecto(file);
+      } catch (e) {
+        if (e.esCloudinary || /tardó demasiado|operación anterior/.test(e.message)) throw e;
+        // Sin conexión directa con Cloudinary: se prueba por el servidor de Google
+        const base64Data = await fileToBase64(file);
+        result = await api('uploadFile', { fileName: file.name, mimeType: file.type, fileData: base64Data });
+      }
+    } else {
+      const base64Data = await fileToBase64(file);
+      result = await api('uploadFile', { fileName: file.name, mimeType: file.type, fileData: base64Data });
+    }
     if (result.success) {
       document.getElementById(fieldId).value = result.url;
       statusEl.className = 'upload-status ok';
@@ -2051,6 +2109,7 @@ async function handleUpload(fieldId, input, isImage) {
   } catch (e) {
     statusEl.className = 'upload-status err';
     statusEl.textContent = 'Error al subir: ' + e.message;
+    showToast('No se pudo subir: ' + e.message, true);
   } finally {
     input.value = '';   // permite volver a elegir el mismo archivo si hizo falta
   }
