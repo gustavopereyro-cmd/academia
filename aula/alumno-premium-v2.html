@@ -186,14 +186,30 @@
     transition:transform .5s ease;
   }
   .curso-img{
-    width:100%; aspect-ratio:16/10; object-fit:cover;
-    background:var(--paper); display:block;
+
+    width:100%;
+
+    aspect-ratio:16/9;
+
+    object-fit:cover;
+
+    display:block;
+
+    transition:
+        transform .5s ease;
   }
-  .curso-body{padding:26px 24px 22px; display:flex; flex-direction:column; gap:12px; flex:1;}
-  .curso-body .eyebrow{
-    font-size:10px; text-transform:uppercase; letter-spacing:.3em;
-    color:var(--rose-deep); font-weight:500;
-  }
+  .curso-body{
+
+    padding:30px;
+
+    display:flex;
+
+    flex-direction:column;
+
+    gap:16px;
+
+    flex:1;
+}
   .curso-body h3{
   font-size:32px;
   line-height:1.1;
@@ -201,23 +217,52 @@
 }
   .curso-body p.desc{font-size:14px; color:var(--ink-soft); flex:1; line-height:1.7;}
   .meta{
-    display:flex; flex-wrap:wrap; gap:8px;
-    font-size:11px; color:var(--ink-soft);
-    text-transform:uppercase; letter-spacing:.12em;
-  }
+
+    display:flex;
+
+    flex-wrap:wrap;
+
+    gap:10px;
+
+    margin-top:10px;
+}
   .meta span{
-    border:1px solid var(--line); border-radius:2px;
-    padding:5px 11px; font-weight:400;
-  }
+
+    background:#F7F2EE;
+
+    border:none;
+
+    border-radius:999px;
+
+    padding:8px 14px;
+
+    font-size:11px;
+}
+
   .btn-ver{
-    margin-top:10px; align-self:flex-start;
-    font-family:'Jost',sans-serif; font-size:11.5px; font-weight:500;
-    text-transform:uppercase; letter-spacing:.22em;
-    background:transparent; color:var(--ink);
-    border:1px solid var(--ink);
-    padding:12px 22px; border-radius:2px; cursor:pointer;
-    transition:all .3s ease;
-  }
+
+    margin-top:20px;
+
+    align-self:flex-start;
+
+    border:none;
+
+    background:#C98F8A;
+
+    color:white;
+
+    padding:14px 24px;
+
+    border-radius:999px;
+
+    font-weight:600;
+
+    letter-spacing:1px;
+
+    cursor:pointer;
+
+    transition:.3s;
+}
 
   .desc-larga{
     font-size:14.5px; color:var(--ink-soft); line-height:1.8;
@@ -658,6 +703,15 @@
 
     box-shadow:
       0 35px 70px rgba(0,0,0,.12);
+}
+  .btn-ver:hover{
+
+    background:#B57F7A;
+}
+
+.curso:hover .curso-img{
+
+    transform:scale(1.05);
 }
   /* ---------- RESPONSIVE ---------- */
   @media (max-width:640px){
