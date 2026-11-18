@@ -519,6 +519,7 @@
           <th class="sortable" onclick="ordenarInscripciones('curso')">Curso ↕</th>
           <th class="sortable" onclick="ordenarInscripciones('fecha')">Fecha de alta ↕</th>
           <th class="sortable" onclick="ordenarInscripciones('habilitado')">Habilitado ↕</th>
+          <th class="sortable" onclick="ordenarInscripciones('acceso')">Acceso hasta ↕</th>
           <th class="sortable" onclick="ordenarInscripciones('avance')">Avance ↕</th>
           <th>Examen final</th><th>Práctico</th><th></th>
         </tr></thead><tbody id="tbody-inscripciones"></tbody></table>
@@ -1226,13 +1227,18 @@ function cargarFiltrosAdmin(){
   const certCu=[...new Set(DATA.egresados.map(e=>String(e.Curso||'')).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es')); const cc=document.getElementById('filtro-cert-curso'); if(cc){const old=cc.value;cc.innerHTML='<option value="">Todos los cursos</option>'+certCu.map(v=>`<option>${esc(v)}</option>`).join('');cc.value=old;}
 }
 function formatearFechaAdmin(v){ if(!v)return ''; const d=new Date(v); if(isNaN(d.getTime()))return String(v); return d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+// Vencida = la fecha "Acceso hasta" ya pasó (el último día todavía puede ver el curso)
+// "2027-02-15" se toma como fecha local (no UTC), así no se corre un día
+function fechaAccesoLocal(v){ if(!v)return null; const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})$/); const d=m?new Date(+m[1],+m[2]-1,+m[3]):new Date(v); return isNaN(d.getTime())?null:d; }
+function accesoVencido(v){ const d=fechaAccesoLocal(v); if(!d)return false; d.setHours(23,59,59,999); return d.getTime()<Date.now(); }
+function celdaAcceso(i){ const d=fechaAccesoLocal(i.Acceso_Hasta); if(!d)return '<span class="field-hint">Sin vencimiento</span>'; const f=esc(d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'})); return accesoVencido(i.Acceso_Hasta)?`${f} <span class="badge noaprobado">Vencido</span>`:f; }
 function ordenarInscripciones(campo){ if(inscSort.campo===campo)inscSort.dir*=-1;else inscSort={campo,dir:1}; renderInscripciones(); }
 function renderInscripciones() {
   const tbody=document.getElementById('tbody-inscripciones'); const fa=document.getElementById('filtro-insc-alumno')?.value||''; const fc=document.getElementById('filtro-insc-curso')?.value||'';
   let arr=DATA.inscripciones.filter(i=>(!fa||String(i.ID_Alumno)===fa)&&(!fc||String(i.ID_Curso)===fc));
-  const val=(i,c)=>c==='alumno'?alumnoNombre(i.ID_Alumno):c==='curso'?cursoNombre(i.ID_Curso):c==='fecha'?new Date(i.Fecha_Alta).getTime()||0:c==='avance'?avanceDe(i).pct:String(i.Habilitado||'');
+  const val=(i,c)=>c==='alumno'?alumnoNombre(i.ID_Alumno):c==='curso'?cursoNombre(i.ID_Curso):c==='fecha'?new Date(i.Fecha_Alta).getTime()||0:c==='avance'?avanceDe(i).pct:c==='acceso'?(fechaAccesoLocal(i.Acceso_Hasta)?fechaAccesoLocal(i.Acceso_Hasta).getTime():8.64e15):String(i.Habilitado||'');
   arr.sort((a,b)=>{const A=val(a,inscSort.campo),B=val(b,inscSort.campo);return (typeof A==='number'?A-B:String(A).localeCompare(String(B),'es'))*inscSort.dir;});
-  tbody.innerHTML=arr.length?arr.map(i=>`<tr><td>${alumnoNombre(i.ID_Alumno)}</td><td>${cursoNombre(i.ID_Curso)}</td><td>${esc(formatearFechaAdmin(i.Fecha_Alta))}</td><td>${esc(i.Habilitado)}</td><td>${celdaAvance(i)}</td><td>${celdaExamen(i)}</td><td>${celdaPractico(i)}</td><td class="actions"><button class="btn btn-secondary btn-small" onclick="openForm('inscripcion', ${i._row})">Editar</button><button class="btn btn-danger" onclick="removeItem('Inscripción','inscripciones',${i._row})">Borrar</button></td></tr>`).join(''):emptyRow(8,'No se encontraron inscripciones.');
+  tbody.innerHTML=arr.length?arr.map(i=>`<tr><td>${alumnoNombre(i.ID_Alumno)}</td><td>${cursoNombre(i.ID_Curso)}</td><td>${esc(formatearFechaAdmin(i.Fecha_Alta))}</td><td>${esc(i.Habilitado)}</td><td>${celdaAcceso(i)}</td><td>${celdaAvance(i)}</td><td>${celdaExamen(i)}</td><td>${celdaPractico(i)}</td><td class="actions"><button class="btn btn-secondary btn-small" onclick="openForm('inscripcion', ${i._row})">Editar</button><button class="btn btn-danger" onclick="removeItem('Inscripción','inscripciones',${i._row})">Borrar</button></td></tr>`).join(''):emptyRow(9,'No se encontraron inscripciones.');
   const c=document.getElementById('contador-inscripciones');if(c)c.textContent=`${arr.length} de ${DATA.inscripciones.length} inscripciones.`;
 }
 /* Avance del alumno en un curso (sale de la hoja Avance) */
@@ -1839,6 +1845,7 @@ const FORM_DEFS = {
       {name:'ID_Curso', label:'Curso', type:'select', source:'cursos', optionValue:'ID_Curso', optionLabel:'Nombre', required:true},
       {name:'Fecha_Alta', label:'Fecha de alta', type:'date', required:true, defaultToday:true},
       {name:'Habilitado', label:'Habilitado', type:'select-fixed', options:['Si','No'], required:true},
+      {name:'Acceso_Hasta', label:'Acceso hasta', type:'date', hint:'Último día en que el alumno puede ver el curso. Dejalo vacío para que no venza.'},
       {type:'section', label:'Examen práctico', onlyOnEdit:true},
       {name:'Nota_Practico', label:'Nota del práctico', type:'text', onlyOnEdit:true, hint:'Ej: 8 o 8,5. Queda registrada como historia del alumno.'},
       {name:'Resultado_Practico', label:'Resultado del práctico', type:'select-fixed', options:['', 'Aprobado', 'Desaprobado'], onlyOnEdit:true},
