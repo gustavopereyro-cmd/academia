@@ -79,33 +79,114 @@
     cursor:pointer; transition:all .3s ease;
   }
 
-  /* ---------- HEADER ---------- */
-  header{
-    padding:48px 0 36px;
+  /* ---------- CABECERA (fija arriba) ---------- */
+  .barra-aula{
+    position:sticky; top:0; z-index:50;
+    background:rgba(255,255,255,.88);
+    -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
     border-bottom:1px solid var(--line);
+    box-shadow:0 10px 30px -24px rgba(74,68,68,.35);
+  }
+  .barra-aula header{
     display:flex; justify-content:space-between; align-items:center; gap:24px;
-    flex-wrap:wrap;
+    min-height:84px; padding-top:10px; padding-bottom:10px;
   }
-  .brand{display:flex; align-items:center; gap:20px;}
-  .brand img{width:64px; height:auto;}
-  .brand-text h1{font-size:clamp(24px,3vw,32px); line-height:1; color:var(--ink);}
+  .brand{display:flex; align-items:center; gap:18px; min-width:0;}
+  .brand img{width:84px; height:auto; flex:none;}
+  .brand-text{padding-left:18px; border-left:1px solid var(--line);}
   .brand-text .eyebrow{
-    font-size:10.5px; text-transform:uppercase; letter-spacing:.32em;
-    color:var(--rose-deep); margin-bottom:6px; font-weight:500;
+    font-size:13px; text-transform:uppercase; letter-spacing:.32em;
+    color:var(--rose-deep); font-weight:500; white-space:nowrap;
   }
-  .brand-text .sub{font-size:12.5px; color:var(--ink-soft); margin-top:4px; font-style:italic;}
-  .saludo{text-align:right; font-size:14px; color:var(--ink-soft);}
-  .saludo strong{color:var(--ink); font-weight:500; font-family:'Cormorant Garamond',serif; font-size:18px; display:block;}
+  .brand-text .sub{font-size:13px; color:var(--ink-soft); margin-top:2px; font-style:italic;}
+  .saludo{display:flex; align-items:center; gap:22px; font-size:14px; color:var(--ink-soft); text-align:right; min-width:0;}
+  .saludo .hola{min-width:0;}
+  .saludo strong{color:var(--ink); font-weight:500; font-family:'Cormorant Garamond',serif; font-size:20px; line-height:1.15; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .btn-salir{
-    background:none; border:none; color:var(--rose-deep);
+    flex:none; background:none; border:1px solid var(--line); border-radius:999px; color:var(--rose-deep);
     font-family:'Jost',sans-serif; font-size:11px; font-weight:500;
     text-transform:uppercase; letter-spacing:.2em; cursor:pointer;
-    margin-top:6px; padding:4px 0; border-bottom:1px solid transparent;
-    transition:border-color .2s;
+    min-height:42px; padding:0 18px;
+    transition:border-color .2s, background-color .2s;
   }
 
+  /* ---------- Acceso con vencimiento ---------- */
+  .meta .chip-hasta{color:var(--ink); border-color:var(--rose);}
+  .meta .chip-vencido{color:#A0524B; background:#FBEFED; border-color:#F0D5D0;}
+  .curso.vencido .curso-img{filter:grayscale(.85); opacity:.7;}
+  .curso.vencido h3{color:var(--ink-soft);}
+  .btn-ver.btn-renovar{display:inline-flex; align-items:center; text-decoration:none; background:#1F8F4A; border-color:#1F8F4A; color:#fff;}
+
+  /* ---------- FOTO DE BIENVENIDA ---------- */
+  .hero-aula{
+    position:relative; overflow:hidden; isolation:isolate;
+    min-height:400px; margin-bottom:56px; border-radius:24px;
+    display:flex; align-items:center;
+    background-color:#5A4A48;
+    /* Foto en alta resolución (Cloudinary) con la copia local como respaldo */
+    background-image:
+      linear-gradient(90deg, rgba(48,36,36,.78) 0%, rgba(48,36,36,.5) 45%, rgba(48,36,36,.08) 80%),
+      url('https://res.cloudinary.com/zhj0kgnr/image/upload/f_auto,q_auto,w_2000/v1792587700/2025_diplomatura_cosmetologia_y_cosmiatria_1792587700025.webp'),
+      url('../img/hero-aula.jpg');
+    background-size:cover; background-position:center 35%;
+    box-shadow:0 30px 60px -36px rgba(74,68,68,.55);
+    animation:aparecerHero .7s ease both;
+  }
+  .hero-contenido{max-width:620px; padding:56px;}
+  .hero-sello{
+    display:inline-block; margin-bottom:22px; padding:9px 18px; border-radius:999px;
+    background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.28);
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+    color:#fff; font-size:11.5px; font-weight:500; text-transform:uppercase; letter-spacing:.22em;
+  }
+  .hero-aula h2{color:#fff; font-size:clamp(38px,5vw,62px); line-height:1; margin-bottom:18px; text-wrap:balance;}
+  .hero-aula p{color:rgba(255,255,255,.92); font-size:17px; font-weight:400; line-height:1.6; max-width:520px; margin-bottom:30px;}
+  .hero-btn{
+    display:inline-flex; align-items:center; min-height:52px; padding:0 30px; border-radius:999px;
+    background:#fff; color:var(--ink); text-decoration:none;
+    font-family:'Jost',sans-serif; font-size:15px; font-weight:500;
+    transition:background-color .2s, transform .15s;
+  }
+  .hero-btn:active{transform:scale(.97);}
+  #mis-cursos{scroll-margin-top:110px;}
+  @keyframes aparecerHero{from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:none;}}
+  @media (max-width:900px){
+    .hero-aula{min-height:360px;}
+    .hero-contenido{padding:40px;}
+  }
+  @media (max-width:640px){
+    .barra-aula header{min-height:68px; padding:8px 18px; gap:12px;}
+    .brand{gap:12px;}
+    .brand img{width:58px;}
+    .brand-text{padding-left:12px;}
+    .brand-text .eyebrow{font-size:11px; letter-spacing:.24em;}
+    .brand-text .sub, .saludo .hola > span{display:none;}
+    .saludo{gap:10px;}
+    .saludo strong{font-size:17px; max-width:28vw;}
+    .btn-salir{padding:0 12px; min-height:40px; letter-spacing:.12em;}
+    .hero-aula{min-height:0; margin:0 -10px 40px; border-radius:20px; background-position:68% center;
+      background-image:
+        linear-gradient(180deg, rgba(48,36,36,.35) 0%, rgba(48,36,36,.8) 100%),
+        url('https://res.cloudinary.com/zhj0kgnr/image/upload/f_auto,q_auto,w_1000/v1792587700/2025_diplomatura_cosmetologia_y_cosmiatria_1792587700025.webp'),
+        url('../img/hero-aula.jpg');}
+    .hero-contenido{padding:120px 24px 28px;}
+    .hero-aula p{font-size:16px; margin-bottom:24px;}
+    .hero-btn{width:100%; justify-content:center;}
+    #mis-cursos{scroll-margin-top:84px;}
+  }
+  @media (max-width:420px){
+    .saludo .hola{display:none;}
+  }
+  @media (hover:hover) and (pointer:fine){
+    .hero-btn:hover{background:var(--paper);}
+    .btn-salir:hover{background:var(--paper); border-color:var(--rose);}
+    .curso.vencido:hover{transform:none;}
+    .btn-ver.btn-renovar:hover{background:#17733B; border-color:#17733B; color:#fff;}
+  }
+  @media (prefers-reduced-motion:reduce){ .hero-aula{animation:none;} }
+
   /* ---------- MAIN ---------- */
-  main{padding:48px 0 100px;}
+  main{padding:32px 0 100px;}
   #estado{color:var(--ink-soft); font-size:14px; margin-bottom:28px; font-style:italic;}
   .grid{
     display:grid; grid-template-columns:repeat(auto-fill, minmax(320px,1fr));
@@ -482,9 +563,6 @@
 
   /* ---------- RESPONSIVE ---------- */
   @media (max-width:640px){
-    header{flex-direction:column; align-items:flex-start; padding:36px 0 28px;}
-    .saludo{text-align:left;}
-    .brand img{width:52px;}
     .login-box{padding:40px 28px;}
     .login-logo{width:180px;}
     .grid{grid-template-columns:1fr; gap:24px;}
@@ -548,26 +626,35 @@
 
 <!-- ===================== CLASSROOM ===================== -->
 <div id="app" style="display:none">
+  <div class="barra-aula">
   <header class="wrap">
     <div class="brand">
       <img src="../img/logo-loto.png" alt="Instituto Mariana Barrera">
       <div class="brand-text">
         <div class="eyebrow">Aula Virtual</div>
-        <h1>Mariana Barrera</h1>
         <div class="sub">Instituto de Estética &amp; Cosmiatría</div>
       </div>
     </div>
     <div class="saludo">
-      <div>Bienvenida</div>
-      <strong id="saludo-nombre"></strong>
+      <div class="hola"><span>Bienvenida</span>
+      <strong id="saludo-nombre"></strong></div>
       <button class="btn-salir" onclick="logout()">Cerrar sesión</button>
     </div>
   </header>
+  </div>
 
   <main>
     <div class="wrap">
       <div id="vista-cursos">
-        <div class="seccion-titulo">
+        <section class="hero-aula" aria-labelledby="hero-titulo">
+          <div class="hero-contenido">
+            <span class="hero-sello">Instituto Mariana Barrera</span>
+            <h2 id="hero-titulo">Bienvenida a tu Aula Virtual</h2>
+            <p>Continuá tu formación profesional: accedé a tus clases y obtené tus certificaciones desde cualquier lugar.</p>
+            <a href="#mis-cursos" class="hero-btn">Ver mis cursos</a>
+          </div>
+        </section>
+        <div class="seccion-titulo" id="mis-cursos">
           <h2>Mis cursos</h2>
           <button class="link-cert" id="link-cert" style="display:none;" onclick="irACertificados()"></button>
         </div>
@@ -949,7 +1036,41 @@
     return { videos, pdfs };
   }
 
+  /* ---------- Vencimiento del acceso ---------- */
+  const WHATSAPP_INSTITUTO = '5491166583117';
+  // "2027-02-15" (o fecha completa) → "15/02/2027"
+  function fechaCorta(v) {
+    if (!v) return '';
+    const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return m[3] + '/' + m[2] + '/' + m[1];
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? String(v) : d.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' });
+  }
+  function linkRenovacion(curso) {
+    const msg = 'Hola! Quiero renovar el acceso al curso "' + (curso.Nombre || '') + '" en el aula virtual.';
+    return 'https://wa.me/' + WHATSAPP_INSTITUTO + '?text=' + encodeURIComponent(msg);
+  }
+
+  function tarjetaVencida(curso) {
+    const card = document.createElement('div');
+    card.className = 'curso vencido';
+    const img = urlSegura(curso.Imagen_URL);
+    card.innerHTML = `
+      ${img
+        ? `<img class="curso-img" src="${esc(img)}" alt="${esc(curso.Nombre)}" loading="lazy">`
+        : `<div class="curso-img"></div>`}
+      <div class="curso-body">
+        <div class="eyebrow">Curso</div>
+        <h3>${esc(curso.Nombre) || 'Curso sin nombre'}</h3>
+        <div class="meta"><span class="chip-vencido">Acceso vencido${curso.Acceso_Hasta ? ' el ' + esc(fechaCorta(curso.Acceso_Hasta)) : ''}</span></div>
+        <p class="desc">Tu período para ver este curso terminó. Si querés seguir cursando, pedí la renovación al instituto.</p>
+        <a class="btn-ver btn-renovar" href="${esc(linkRenovacion(curso))}" target="_blank" rel="noopener">Renovar por WhatsApp</a>
+      </div>`;
+    return card;
+  }
+
   function crearTarjeta(curso) {
+    if (curso.Vencido) return tarjetaVencida(curso);
     const card = document.createElement('div');
     card.className = 'curso';
     const img = urlSegura(curso.Imagen_URL);
@@ -966,6 +1087,7 @@
         <div class="meta">
           ${curso.Duracion ? `<span>${esc(curso.Duracion)}</span>` : ''}
           ${nClases ? `<span>${nClases} ${nClases === 1 ? 'clase' : 'clases'}</span>` : ''}
+          ${curso.Acceso_Hasta ? `<span class="chip-hasta">Disponible hasta el ${esc(fechaCorta(curso.Acceso_Hasta))}</span>` : ''}
           ${curso.Examen && curso.Examen.Aprobado ? '<span class="chip-ex">✓ Examen aprobado</span>'
             : curso.Examen && (prog.total === 0 || prog.hechas === prog.total) && curso.Examen.Restantes > 0 ? '<span class="chip-ex">Examen final disponible</span>' : ''}
         </div>
@@ -1002,7 +1124,7 @@
   function aplicarRuta() {
     const m = location.hash.match(/curso=([^&]+)/);
     const curso = m ? CURSOS.find(c => String(c.ID_Curso) === decodeURIComponent(m[1])) : null;
-    if (curso) mostrarCurso(curso);
+    if (curso && !curso.Vencido) mostrarCurso(curso);
     else mostrarGrilla();
   }
   window.addEventListener('hashchange', aplicarRuta);
