@@ -1525,7 +1525,7 @@ function vistaExamenCurso(curso) {
           <div class="cuerpo">
             <strong>${esc(p.Pregunta)}</strong>
             <ol>${['A', 'B', 'C', 'D'].filter(l => String(p['Opcion_' + l] || '').trim()).map(l =>
-              `<li class="${String(p.Correcta).toUpperCase() === l ? 'ok' : ''}"><b>${l})</b>${esc(p['Opcion_' + l])}</li>`).join('')}</ol>
+              `<li class="${correctasDe(p).indexOf(l) !== -1 ? 'ok' : ''}"><b>${l})</b>${esc(p['Opcion_' + l])}</li>`).join('')}</ol>
           </div>
           <div class="acciones">
             <button class="btn btn-secondary btn-small" onclick="formPreguntaEx(${p._row})">Editar</button>
@@ -1589,6 +1589,10 @@ async function borrarExamen() {
 }
 
 let editandoPreguntaEx = null;
+// "A,C" → ['A','C'] (una pregunta puede tener una o varias respuestas correctas)
+function correctasDe(p) {
+  return String((p && p.Correcta) || '').toUpperCase().split(/[\s,;]+/).filter(l => ['A', 'B', 'C', 'D'].indexOf(l) !== -1);
+}
 function formPreguntaEx(row) {
   const ex = examenDeCurso(examenCursoSel);
   if (!ex) return;
@@ -1596,9 +1600,9 @@ function formPreguntaEx(row) {
   const p = row ? DATA.preguntasEx.find(x => x._row === row) : null;
   const pregs = preguntasDeExamen(ex.ID_Examen);
   const orden = p ? p.Orden : pregs.reduce((m, x) => Math.max(m, Number(x.Orden) || 0), 0) + 1;
-  const correcta = p ? String(p.Correcta || '').toUpperCase() : '';
+  const correctas = correctasDe(p);
   const filaOpcion = l => `<div class="opcion-fila">
-      <input type="radio" name="pex_correcta" value="${l}" id="pex_ok_${l}" ${correcta === l ? 'checked' : ''} aria-label="La opción ${l} es la correcta">
+      <input type="checkbox" name="pex_correcta" value="${l}" id="pex_ok_${l}" ${correctas.indexOf(l) !== -1 ? 'checked' : ''} aria-label="La opción ${l} es correcta">
       <span class="letra">${l}</span>
       <input type="text" id="pex_${l}" value="${esc(p ? p['Opcion_' + l] : '')}" placeholder="${l === 'C' || l === 'D' ? 'Opcional' : 'Texto de la opción ' + l}">
     </div>`;
@@ -1607,7 +1611,7 @@ function formPreguntaEx(row) {
     <div class="field"><label for="pex_Pregunta">Pregunta</label><textarea id="pex_Pregunta">${esc(p ? p.Pregunta : '')}</textarea></div>
     <div class="field"><label>Opciones</label>
       ${['A', 'B', 'C', 'D'].map(filaOpcion).join('')}
-      <div class="field-hint">Marcá con el círculo cuál es la respuesta correcta. C y D son opcionales.</div>
+      <div class="field-hint">Tildá la respuesta correcta. Si hay más de una correcta, tildalas todas: la alumna suma la pregunta solo si elige exactamente esas. C y D son opcionales.</div>
     </div>
     <div class="field"><label for="pex_Orden">Orden</label><input id="pex_Orden" type="number" min="1" value="${esc(orden)}"></div>
     <div class="form-actions">
@@ -1623,13 +1627,14 @@ async function guardarPreguntaEx() {
   const ex = examenDeCurso(examenCursoSel);
   if (!ex) return;
   const val = id => document.getElementById('pex_' + id).value.trim();
-  const marcada = document.querySelector('input[name="pex_correcta"]:checked');
+  const marcadas = Array.from(document.querySelectorAll('input[name="pex_correcta"]:checked')).map(x => x.value);
   const data = { Pregunta: val('Pregunta'), Opcion_A: val('A'), Opcion_B: val('B'), Opcion_C: val('C'), Opcion_D: val('D'),
-    Correcta: marcada ? marcada.value : '', Orden: val('Orden') };
+    Correcta: marcadas.join(','), Orden: val('Orden') };
   if (!data.Pregunta) { showToast('Escribí la pregunta.', true); return; }
   if (!data.Opcion_A || !data.Opcion_B) { showToast('Completá al menos las opciones A y B.', true); return; }
   if (!data.Opcion_C && data.Opcion_D) { showToast('Si usás la opción D, completá también la C.', true); return; }
-  if (!data.Correcta || !data['Opcion_' + data.Correcta]) { showToast('Marcá con el círculo cuál es la respuesta correcta.', true); return; }
+  if (!marcadas.length) { showToast('Tildá al menos una respuesta correcta.', true); return; }
+  if (marcadas.some(l => !data['Opcion_' + l])) { showToast('Tildaste como correcta una opción que está vacía.', true); return; }
   try {
     if (editandoPreguntaEx) {
       await api('updatePreguntaEx', { row: editandoPreguntaEx, expect: expectDe('preguntasEx', editandoPreguntaEx), data });
