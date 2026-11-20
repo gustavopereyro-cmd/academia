@@ -520,6 +520,8 @@
     display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:500; color:var(--ink-soft);
     transition:all .15s;
   }
+  .op-ex.multi .letra{border-radius:7px;}
+  .aviso-multi{margin:-6px 0 14px; font-size:14px; color:var(--rose-deep);}
   .op-ex.elegida{border-color:var(--rose-deep); background:#FFF8F6;}
   .op-ex input:checked + .letra{background:var(--rose-deep); border-color:var(--rose-deep); color:#fff;}
   .op-ex input:focus-visible + .letra{outline:2px solid var(--rose-deep); outline-offset:3px;}
@@ -1564,11 +1566,12 @@
           ${datos.preguntas.map((p, i) => `
             <fieldset class="preg-ex">
               <legend><span class="n">Pregunta ${i + 1} de ${n}</span><span class="t">${esc(p.Pregunta)}</span></legend>
-              ${(p.Opciones || []).map(o => `
-                <label class="op-ex${EXAMEN.respuestas[p.ID] === o.L ? ' elegida' : ''}">
-                  <input type="radio" name="q_${esc(p.ID)}" value="${esc(o.L)}" data-preg="${esc(p.ID)}" ${EXAMEN.respuestas[p.ID] === o.L ? 'checked' : ''}>
+              ${p.Multiple ? '<p class="aviso-multi">Hay más de una respuesta correcta: elegí todas.</p>' : ''}
+              ${(p.Opciones || []).map(o => { const sel = elegidas(p.ID).indexOf(o.L) !== -1; return `
+                <label class="op-ex${p.Multiple ? ' multi' : ''}${sel ? ' elegida' : ''}">
+                  <input type="${p.Multiple ? 'checkbox' : 'radio'}" name="q_${esc(p.ID)}" value="${esc(o.L)}" data-preg="${esc(p.ID)}" ${sel ? 'checked' : ''}>
                   <span class="letra" aria-hidden="true">${esc(o.L)}</span><span>${esc(o.T)}</span>
-                </label>`).join('')}
+                </label>`; }).join('')}
             </fieldset>`).join('')}
         </form>
         <div class="enviar-ex" id="enviar-ex"></div>
@@ -1592,6 +1595,11 @@
       el.classList.toggle('urgente', resta <= 60);
     }
     if (resta === 0) { clearInterval(EXAMEN.reloj); EXAMEN.reloj = null; enviarExamen(true); }
+  }
+
+  // Opciones elegidas en una pregunta: "A" o "A,C" → ['A'] / ['A','C']
+  function elegidas(idPreg) {
+    return String((EXAMEN && EXAMEN.respuestas[idPreg]) || '').split(',').filter(Boolean);
   }
 
   function sinResponder() {
@@ -1675,9 +1683,12 @@
   // Elegir una opción del examen
   vistaCursoEl.addEventListener('change', e => {
     const el = e.target;
-    if (!EXAMEN || !el.matches('input[type=radio][data-preg]')) return;
-    EXAMEN.respuestas[el.dataset.preg] = el.value;
-    el.closest('fieldset').querySelectorAll('.op-ex').forEach(l => l.classList.toggle('elegida', l.contains(el)));
+    if (!EXAMEN || !el.matches('input[data-preg]')) return;
+    const grupo = el.closest('fieldset');
+    // Una sola (radio) o varias (casillas): se guardan como "B" o "A,C"
+    EXAMEN.respuestas[el.dataset.preg] = Array.from(grupo.querySelectorAll('input[data-preg]:checked'))
+      .map(x => x.value).sort().join(',');
+    grupo.querySelectorAll('.op-ex').forEach(l => l.classList.toggle('elegida', l.querySelector('input').checked));
     guardarRespuestas();
     actualizarProgresoExamen();
     if (document.querySelector('#enviar-ex .confirmar-ex')) renderEnvio(true);
