@@ -493,6 +493,44 @@
   .btn-ex.sec{background:transparent; color:var(--ink);}
   .btn-ex:disabled{opacity:.55; cursor:wait;}
   .chip-ex{color:#3F6B45 !important; font-weight:500;}
+  /* ---------- Estado del examen en la tarjeta (se ve de un vistazo) ---------- */
+  .meta span.chip-estado{border:none; font-weight:600; letter-spacing:.1em;}
+  .meta span.chip-estado.ok{background:#5E8C61; color:#fff;}
+  .meta span.chip-estado.pendiente{background:#F6C453; color:#4A3A0C;}
+  .meta span.chip-estado.no{background:#B5483F; color:#fff;}
+  .curso.estado-aprobado::before, .curso.estado-pendiente::before, .curso.estado-sin-intentos::before{height:5px; transform:scaleX(1); z-index:2;}
+  .curso.estado-aprobado::before{background:#5E8C61;}
+  .curso.estado-pendiente::before{background:#F6C453;}
+  .curso.estado-sin-intentos::before{background:#B5483F;}
+  .curso.estado-pendiente{border-color:#F0D58E;}
+  .visually-hidden{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap;}
+  /* ---------- Trabajos de desarrollo ---------- */
+  .trabajos-ex{margin-top:22px;}
+  .trabajos-ex > h4{font-family:'Cormorant Garamond',serif; font-size:24px; font-weight:500; color:var(--ink); margin:0 0 6px;}
+  .trabajos-ex > p{font-size:14.5px; color:var(--ink-soft); margin:0 0 16px;}
+  .trabajo{border:1px solid var(--line); background:var(--white); padding:20px 22px; margin-bottom:12px; border-left:4px solid var(--line);}
+  .trabajo.t-pendiente, .trabajo.t-rehacer{border-left-color:#F2C14E;}
+  .trabajo.t-revision{border-left-color:#7FA3B0;}
+  .trabajo.t-aprobado{border-left-color:#5E8C61;}
+  .trabajo.t-no{border-left-color:#B5483F;}
+  .trabajo .t-cab{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
+  .trabajo .t-num{font-size:11px; text-transform:uppercase; letter-spacing:.2em; color:var(--rose-deep); font-weight:500;}
+  .t-estado{font-size:11px; text-transform:uppercase; letter-spacing:.12em; font-weight:600; padding:5px 10px;}
+  .t-pendiente .t-estado, .t-rehacer .t-estado{background:#F6C453; color:#4A3A0C;}
+  .t-revision .t-estado{background:#E5EDF0; color:#3E6170;}
+  .t-aprobado .t-estado{background:#5E8C61; color:#fff;}
+  .t-no .t-estado{background:#B5483F; color:#fff;}
+  .trabajo .t-consigna{font-size:15.5px; color:var(--ink); white-space:pre-wrap; line-height:1.6;}
+  .trabajo .t-obs{margin-top:12px; padding:12px 14px; background:#FBF3E4; border:1px solid #F1DDA6; font-size:14.5px; white-space:pre-wrap;}
+  .trabajo .t-obs strong{display:block; font-size:11px; text-transform:uppercase; letter-spacing:.14em; margin-bottom:4px; color:#8A6410;}
+  .trabajo .t-pie{margin-top:14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:13.5px; color:var(--ink-soft);}
+  .editor-trabajo .tr-consigna{background:var(--paper); border-left:3px solid var(--rose); padding:14px 18px; margin:0 0 18px; font-size:15.5px; white-space:pre-wrap;}
+  .editor-trabajo textarea{width:100%; min-height:55vh; padding:18px 20px; border:1px solid var(--line); background:#fff;
+    font-family:'Jost',sans-serif; font-size:16px; line-height:1.75; color:var(--ink); resize:vertical;}
+  .editor-trabajo textarea:focus{outline:none; border-color:var(--rose-deep); box-shadow:0 0 0 3px rgba(201,143,138,.15);}
+  .editor-trabajo textarea[readonly]{background:var(--paper);}
+  .editor-trabajo .tr-contador{display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; font-size:13px; color:var(--ink-soft); margin:8px 0 18px;}
+  .btn-ver.btn-rendir{background:#F6C453; border-color:#E2AC2F; color:#4A3A0C; font-weight:600;}
 
   .vista-examen{max-width:760px; margin:0 auto;}
   .vista-examen .curso-top{align-items:flex-start;}
@@ -579,6 +617,7 @@
     .curso:hover{transform:translateY(-4px); box-shadow:0 24px 48px -24px rgba(201,143,138,.28);}
     .curso:hover::before{transform:scaleX(1);}
     .btn-ver:hover{background:var(--ink); color:var(--white);}
+    .btn-ver.btn-rendir:hover{background:#E9AE2C; border-color:#D49A1C; color:#3A2D08;}
     .lista-pdf a:hover{border-color:var(--rose); background:var(--rose-soft);}
     .btn-volver:hover{border-bottom-color:var(--rose-deep);}
     .item-clase:not(.activa):hover{background:var(--paper);}
@@ -1071,6 +1110,24 @@
     return card;
   }
 
+  // Estado del examen para pintar la tarjeta: aprobado (verde), pendiente (amarillo), sin intentos (rojo)
+  function estadoExamen(curso, prog) {
+    const ex = curso.Examen;
+    if (!ex) return '';
+    if (ex.Aprobado) {
+      const ts = ex.Trabajos || [];
+      if (!ts.length || ts.every(t => t.Estado === 'Aprobado')) return 'aprobado';
+      if (ts.some(t => t.Estado === 'No aprobado')) return 'trabajo-no';
+      if (ts.some(t => t.Estado === 'Pendiente' || t.Estado === 'Rehacer')) return 'trabajos';
+      return 'revision';
+    }
+    const completo = prog.total === 0 || prog.hechas === prog.total;
+    if (ex.EnCurso || (completo && ex.Restantes > 0)) return 'pendiente';
+    if (ex.Rendido && ex.Restantes <= 0) return 'sin-intentos';
+    return '';
+  }
+  let irAlExamen = false;   // al tocar "Rendir examen final", el curso se abre directo en el examen
+
   function crearTarjeta(curso) {
     if (curso.Vencido) return tarjetaVencida(curso);
     const card = document.createElement('div');
@@ -1078,6 +1135,11 @@
     const img = urlSegura(curso.Imagen_URL);
     const nClases = (curso.Clases || []).length;
     const prog = progresoCurso(curso);
+    const estado = estadoExamen(curso, prog);
+    const claseEstado = { aprobado: 'aprobado', pendiente: 'pendiente', trabajos: 'pendiente', revision: 'pendiente',
+      'sin-intentos': 'sin-intentos', 'trabajo-no': 'sin-intentos' }[estado];
+    if (claseEstado) card.classList.add('estado-' + claseEstado);
+    const hayRehacer = estado === 'trabajos' && (curso.Examen.Trabajos || []).some(t => t.Estado === 'Rehacer');
     card.innerHTML = `
       ${img
         ? `<img class="curso-img" src="${esc(img)}" alt="${esc(curso.Nombre)}" loading="lazy">`
@@ -1090,17 +1152,25 @@
           ${curso.Duracion ? `<span>${esc(curso.Duracion)}</span>` : ''}
           ${nClases ? `<span>${nClases} ${nClases === 1 ? 'clase' : 'clases'}</span>` : ''}
           ${curso.Acceso_Hasta ? `<span class="chip-hasta">Disponible hasta el ${esc(fechaCorta(curso.Acceso_Hasta))}</span>` : ''}
-          ${curso.Examen && curso.Examen.Aprobado ? '<span class="chip-ex">✓ Examen aprobado</span>'
-            : curso.Examen && (prog.total === 0 || prog.hechas === prog.total) && curso.Examen.Restantes > 0 ? '<span class="chip-ex">Examen final disponible</span>' : ''}
+          ${estado === 'aprobado' ? '<span class="chip-estado ok">✓ Examen aprobado</span>'
+            : estado === 'pendiente' ? `<span class="chip-estado pendiente">${curso.Examen.EnCurso ? 'Examen sin terminar' : 'Examen pendiente'}</span>`
+            : estado === 'sin-intentos' ? '<span class="chip-estado no">Examen no aprobado</span>'
+            : estado === 'trabajos' ? `<span class="chip-estado pendiente">${hayRehacer ? 'Trabajo para rehacer' : 'Trabajos pendientes'}</span>`
+            : estado === 'revision' ? '<span class="chip-estado pendiente">Trabajo en revisión</span>'
+            : estado === 'trabajo-no' ? '<span class="chip-estado no">Trabajo no aprobado</span>' : ''}
         </div>
         ${nClases ? `<div class="prog-curso">
           <div class="prog-barra"><span style="width:${prog.pct}%"></span></div>
           <small>${prog.pct}% completado · ${prog.hechas} de ${prog.total} ${prog.total === 1 ? 'clase' : 'clases'}</small>
         </div>` : ''}
-        <button class="btn-ver">${prog.pct === 100 ? 'Repasar curso' : prog.hechas ? 'Continuar curso' : 'Empezar curso'}</button>
+        ${estado === 'pendiente'
+          ? `<button class="btn-ver btn-rendir">${curso.Examen.EnCurso ? 'Continuar examen' : 'Rendir examen final'}</button>`
+          : estado === 'trabajos'
+          ? `<button class="btn-ver btn-rendir">${hayRehacer ? 'Rehacer trabajo' : 'Escribir trabajos'}</button>`
+          : `<button class="btn-ver">${prog.pct === 100 ? 'Repasar curso' : prog.hechas ? 'Continuar curso' : 'Empezar curso'}</button>`}
       </div>`;
     const abrir = () => abrirCurso(curso.ID_Curso);
-    card.querySelector('.btn-ver').addEventListener('click', abrir);
+    card.querySelector('.btn-ver').addEventListener('click', () => { irAlExamen = estado === 'pendiente' || estado === 'trabajos'; abrir(); });
     const imgEl = card.querySelector('.curso-img');
     imgEl.style.cursor = 'pointer';
     imgEl.addEventListener('click', abrir);
@@ -1162,6 +1232,13 @@
 
   function mostrarCurso(curso) {
     detenerExamen();
+    if (irAlExamen) {
+      irAlExamen = false;
+      setTimeout(() => {
+        const zona = document.getElementById('zona-examen');
+        if (zona) zona.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 250);
+    }
     cursoActual = curso;
     setTimeout(() => refrescarEnSilencio(), 0);
     const clases = curso.Clases || [];
@@ -1470,7 +1547,10 @@
 
     if (ex.Aprobado) {
       clase = 'aprobada'; ico = ICO_OK; titulo = 'Examen aprobado';
-      texto = '¡Felicitaciones! Aprobaste el examen final de este curso. Tu resultado quedó registrado en el instituto.';
+      const ts = ex.Trabajos || [];
+      texto = !ts.length ? '¡Felicitaciones! Aprobaste el examen final de este curso. Tu resultado quedó registrado en el instituto.'
+        : ts.every(t => t.Estado === 'Aprobado') ? '¡Felicitaciones! Aprobaste el examen y los trabajos de desarrollo: completaste el cierre del curso.'
+        : 'Aprobaste el examen. Para terminar el curso, completá los trabajos de desarrollo de abajo: el instituto los lee y te avisa si están aprobados.';
     } else if (ex.EnCurso) {
       texto = 'Tenés el examen empezado.' + (ex.Tiempo_Min ? ' El tiempo sigue corriendo.' : '');
       acciones = '<button class="btn-ex" data-accion="empezar-examen">Continuar examen</button>';
@@ -1506,7 +1586,145 @@
           ${acciones ? `<div class="acciones-ex">${acciones}</div>` : ''}
           <div class="msg-ex" id="msg-ex" role="alert">${esc(mensaje || '')}</div>
         </div>
+      </section>
+      ${ex.Aprobado && (ex.Trabajos || []).length ? seccionTrabajos(ex.Trabajos) : ''}`;
+  }
+
+  /* ---------- Trabajos de desarrollo (se habilitan al aprobar el examen) ---------- */
+  const ESTADOS_TRABAJO = {
+    'Pendiente': { cls: 't-pendiente', txt: 'Para hacer' },
+    'Rehacer': { cls: 't-rehacer', txt: 'Para rehacer' },
+    'En revisión': { cls: 't-revision', txt: 'En revisión' },
+    'Aprobado': { cls: 't-aprobado', txt: 'Aprobado' },
+    'No aprobado': { cls: 't-no', txt: 'No aprobado' }
+  };
+  function fechaHora(v) {
+    const d = new Date(String(v || '').replace(' ', 'T'));
+    return isNaN(d.getTime()) ? '' : d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+  function seccionTrabajos(trabajos) {
+    const n = trabajos.length;
+    return `<section class="trabajos-ex" aria-labelledby="titulo-trabajos">
+        <h4 id="titulo-trabajos">${n === 1 ? 'Trabajo de desarrollo' : 'Trabajos de desarrollo'}</h4>
+        <p>Escribí con tus palabras todo lo que se pide: no hay límite de largo. Lo que escribís se guarda solo en este dispositivo hasta que lo envíes.</p>
+        ${trabajos.map(t => {
+          const e = ESTADOS_TRABAJO[t.Estado] || ESTADOS_TRABAJO['En revisión'];
+          const borrador = leerBorradorTrabajo(t.N);
+          let pie = '';
+          if (t.Estado === 'Pendiente') pie = `<button class="btn-ex" data-accion="escribir-trabajo" data-n="${t.N}">${borrador ? 'Seguir escribiendo' : 'Escribir trabajo'}</button>${borrador ? '<span>Tenés un borrador guardado.</span>' : ''}`;
+          else if (t.Estado === 'Rehacer') pie = `<button class="btn-ex" data-accion="escribir-trabajo" data-n="${t.N}">Rehacer trabajo</button>`;
+          else if (t.Estado === 'En revisión') pie = `<span>Enviado${t.Enviado ? ' el ' + esc(fechaHora(t.Enviado)) : ''}. El instituto lo está leyendo.</span><button class="btn-ex sec" data-accion="ver-trabajo" data-n="${t.N}">Ver lo que envié</button>`;
+          else pie = `<button class="btn-ex sec" data-accion="ver-trabajo" data-n="${t.N}">Ver lo que envié</button>`;
+          if (t.Estado === 'No aprobado') pie = `<span>Si necesitás rehacerlo, el instituto te lo puede habilitar.</span>` + pie;
+          return `<article class="trabajo ${e.cls}">
+              <div class="t-cab"><span class="t-num">Trabajo ${t.N}${n > 1 ? ' de ' + n : ''}</span><span class="t-estado">${e.txt}</span></div>
+              <div class="t-consigna">${esc(t.Consigna)}</div>
+              ${t.Observaciones && t.Estado !== 'Pendiente' && t.Estado !== 'En revisión' ? `<div class="t-obs"><strong>Observaciones del instituto</strong>${esc(t.Observaciones)}</div>` : ''}
+              <div class="t-pie">${pie}</div>
+            </article>`;
+        }).join('')}
       </section>`;
+  }
+
+  function claveTrabajo(n) {
+    return 'aula_trabajo_' + (sessionStorage.getItem('alumno_nombre') || '') + '_' + (cursoActual ? cursoActual.ID_Curso : '') + '_' + n;
+  }
+  function leerBorradorTrabajo(n) { try { return localStorage.getItem(claveTrabajo(n)) || ''; } catch (e) { return ''; } }
+  function guardarBorradorTrabajo(n, texto) { try { localStorage.setItem(claveTrabajo(n), texto); } catch (e) {} }
+  function borrarBorradorTrabajo(n) { try { localStorage.removeItem(claveTrabajo(n)); } catch (e) {} }
+
+  let TRABAJO = null;   // trabajo abierto: { n, soloLectura, enviando }
+  function contarPalabras(t) { const m = String(t).trim().match(/\S+/g); return m ? m.length : 0; }
+
+  async function abrirTrabajo(n, soloLectura) {
+    const curso = cursoActual;
+    const t = curso && curso.Examen && (curso.Examen.Trabajos || []).find(x => x.N === n);
+    if (!t) return;
+    detenerSeguimiento();
+    TRABAJO = { n, soloLectura, enviando: false };
+    vistaCursoEl.innerHTML = `
+      <div class="vista-examen editor-trabajo">
+        <div class="curso-top">
+          <div>
+            <button class="btn-volver" data-accion="volver-trabajo">← Volver al curso</button>
+            <h2>Trabajo de desarrollo ${t.N}</h2>
+            <p style="color:var(--ink-soft);font-size:14px;margin-top:4px">${esc(curso.Nombre)}</p>
+          </div>
+        </div>
+        <div class="tr-consigna">${esc(t.Consigna)}</div>
+        ${t.Observaciones && t.Estado === 'Rehacer' ? `<div class="trabajo t-rehacer" style="margin:0 0 18px"><div class="t-obs" style="margin:0"><strong>Observaciones del instituto</strong>${esc(t.Observaciones)}</div></div>` : ''}
+        <label for="texto-trabajo" class="visually-hidden">Tu trabajo</label>
+        <textarea id="texto-trabajo" ${soloLectura ? 'readonly' : ''} placeholder="Escribí acá tu desarrollo…">${soloLectura ? 'Cargando…' : esc(leerBorradorTrabajo(n))}</textarea>
+        <div class="tr-contador"><span id="tr-palabras"></span><span id="tr-guardado">${soloLectura ? '' : 'Se guarda solo mientras escribís.'}</span></div>
+        <div id="envio-trabajo"></div>
+      </div>`;
+    window.scrollTo(0, 0);
+    const area = document.getElementById('texto-trabajo');
+    const contar = () => { document.getElementById('tr-palabras').textContent = contarPalabras(area.value) + ' palabras'; };
+    // Para ver lo enviado, o para rehacer sin borrador: se trae el texto que ya mandó
+    if (soloLectura || (t.Estado === 'Rehacer' && !leerBorradorTrabajo(n))) {
+      try {
+        const r = await api('getMiTrabajo', { token: sessionStorage.getItem('alumno_token'), idCurso: curso.ID_Curso, numero: n });
+        if (r.sesionInvalida) { sesionVencidaAula(); return; }
+        if (r.error) throw new Error(r.error);
+        if (TRABAJO && TRABAJO.n === n) { area.value = r.texto || ''; if (!soloLectura) guardarBorradorTrabajo(n, area.value); }
+      } catch (e) {
+        if (soloLectura) area.value = 'No se pudo cargar el trabajo: ' + (e instanceof TypeError ? 'revisá tu conexión.' : e.message);
+      }
+    }
+    contar();
+    if (!soloLectura) {
+      area.addEventListener('input', () => { guardarBorradorTrabajo(n, area.value); contar(); const m = document.querySelector('#envio-trabajo .msg-ex'); if (m) m.textContent = ''; });
+      renderEnvioTrabajo(false);
+      area.focus();
+    }
+  }
+
+  function renderEnvioTrabajo(confirmando, mensaje) {
+    const zona = document.getElementById('envio-trabajo');
+    if (!zona || !TRABAJO) return;
+    zona.innerHTML = (confirmando
+      ? `<div class="confirmar-ex" role="group" aria-label="Confirmar envío del trabajo">
+          <strong>¿Enviar el trabajo?</strong> Después de enviarlo ya no lo vas a poder cambiar, salvo que el instituto te pida rehacerlo.
+          <div class="acciones-ex">
+            <button class="btn-ex" data-accion="confirmar-trabajo">Sí, enviar trabajo</button>
+            <button class="btn-ex sec" data-accion="seguir-escribiendo">Seguir escribiendo</button>
+          </div>
+        </div>`
+      : `<div class="acciones-ex"><button class="btn-ex" data-accion="enviar-trabajo">Enviar para corrección</button></div>`)
+      + `<div class="msg-ex" role="alert">${esc(mensaje || '')}</div>`;
+  }
+
+  async function enviarTrabajo(boton) {
+    const curso = cursoActual;
+    const area = document.getElementById('texto-trabajo');
+    if (!TRABAJO || TRABAJO.enviando || !curso || !area) return;
+    const n = TRABAJO.n;
+    const texto = area.value.trim();
+    if (texto.length < 30) { renderEnvioTrabajo(false, 'El trabajo es muy corto. Desarrollá un poco más antes de enviarlo.'); return; }
+    TRABAJO.enviando = true;
+    boton.disabled = true; boton.textContent = 'Enviando…';
+    try {
+      const r = await api('enviarTrabajo', { token: sessionStorage.getItem('alumno_token'), idCurso: curso.ID_Curso, numero: n, texto });
+      if (r.sesionInvalida) { sesionVencidaAula(); return; }
+      if (r.error || !r.ok) throw new Error(r.error || 'No se pudo enviar el trabajo.');
+      borrarBorradorTrabajo(n);
+      const lista = curso.Examen.Trabajos || [];
+      const i = lista.findIndex(x => x.N === n);
+      if (i !== -1) lista[i] = Object.assign({}, lista[i], r.trabajo);
+      TRABAJO = null;
+      vistaCursoEl.innerHTML = `
+        <div class="resultado-ex ok" role="status">
+          <div class="ico-ex">${ICO_OK}</div>
+          <h2>¡Trabajo enviado!</h2>
+          <p>El instituto lo va a leer y vas a ver el resultado en este curso.</p>
+          <div class="acciones-ex"><button class="btn-ex" data-accion="volver-trabajo">Volver al curso</button></div>
+        </div>`;
+      window.scrollTo(0, 0);
+    } catch (e) {
+      if (TRABAJO) TRABAJO.enviando = false;
+      renderEnvioTrabajo(false, e instanceof TypeError ? 'No hay conexión. Tu trabajo está guardado: revisá tu internet y tocá Enviar de nuevo.' : e.message);
+    }
   }
 
   function sesionVencidaAula() {
@@ -1714,6 +1932,12 @@
     else if (el.dataset.accion === 'seguir-revisando') renderEnvio(false);
     else if (el.dataset.accion === 'confirmar-envio') enviarExamen(false);
     else if (el.dataset.accion === 'volver-curso') { if (cursoActual) mostrarCurso(cursoActual); }
+    else if (el.dataset.accion === 'escribir-trabajo') abrirTrabajo(Number(el.dataset.n), false);
+    else if (el.dataset.accion === 'ver-trabajo') abrirTrabajo(Number(el.dataset.n), true);
+    else if (el.dataset.accion === 'enviar-trabajo') renderEnvioTrabajo(true);
+    else if (el.dataset.accion === 'seguir-escribiendo') renderEnvioTrabajo(false);
+    else if (el.dataset.accion === 'confirmar-trabajo') enviarTrabajo(el);
+    else if (el.dataset.accion === 'volver-trabajo') { TRABAJO = null; if (cursoActual) { irAlExamen = true; mostrarCurso(cursoActual); } }
     else if (el.dataset.accion === 'salir-examen') {
       const conTiempo = EXAMEN && EXAMEN.fin;
       if (!confirm('Tu examen queda empezado y tus respuestas guardadas en este dispositivo. ' +
