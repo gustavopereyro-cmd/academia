@@ -378,6 +378,15 @@
   .badge.aprobado{background:#E8F0E5; color:#4F7942; border:1px solid #CFE0C7;}
   .badge.noaprobado{background:#FBEFED; color:#B3452C; border:1px solid #F0D5D0;}
   .badge.encurso{background:#E5EDF0; color:#4A6E7A; border:1px solid #C7DCE3;}
+  .badge.rehacer{background:#FDF3DC; color:#8A6410; border:1px solid #F1DDA6;}
+  /* Trabajos de desarrollo */
+  .tr-consigna{background:var(--paper); border-left:3px solid var(--rose); padding:12px 16px; margin:8px 0 18px; font-size:14px; white-space:pre-wrap;}
+  .tr-texto{border:1px solid var(--line); background:#fff; padding:18px 20px; max-height:55vh; overflow:auto; font-size:15px; line-height:1.75; white-space:pre-wrap;}
+  .tr-meta{font-size:13px; color:var(--ink-soft); margin:4px 0 14px;}
+  .tr-botones{display:flex; flex-wrap:wrap; gap:10px; margin-top:16px;}
+  .btn-aprobar{background:#4F7942; border-color:#4F7942; color:#fff;}
+  .btn-rehacer{background:#F2C14E; border-color:#E0AC33; color:#4A3A0C;}
+  .tr-pendientes{border:1px solid #F1DDA6; background:#FFFBF0;}
   .ex-preg{border:1px solid var(--line); background:var(--cream); padding:16px 18px; margin-bottom:10px; display:flex; gap:16px; align-items:flex-start;}
   .ex-preg .num{font-family:'Cormorant Garamond',serif; font-size:22px; font-weight:600; color:var(--rose-deep); min-width:28px; line-height:1.2;}
   .ex-preg .cuerpo{flex:1; min-width:0;}
@@ -614,7 +623,7 @@ function tiempoMaximo(action) {
 
 async function api(action, payload) {
   // Las acciones que guardan, suben o borran bloquean la pantalla hasta terminar
-  const esEscritura = action !== 'login' && action !== 'marcarNotificacionesLeidas' && !/^get/.test(action);
+  const esEscritura = action !== 'login' && action !== 'marcarNotificacionesLeidas' && action !== 'leerTrabajo' && !/^get/.test(action);
   if (esEscritura) {
     if (operacionEnCurso) throw new Error('Esperá a que termine la operación anterior.');
     operacionEnCurso = true;
@@ -1275,6 +1284,7 @@ function guardarDatosExamenes(r) {
   DATA.examenes = (r && r.examenes) || [];
   DATA.preguntasEx = (r && r.preguntas) || [];
   DATA.resultadosEx = (r && r.resultados) || [];
+  DATA.trabajos = (r && r.trabajos) || [];
 }
 async function recargarExamenes() {
   if (Date.now() - datosFrescosEn >= 5000) {
@@ -1324,6 +1334,13 @@ function armarNotificaciones() {
       }
       return { ms: fechaMs(r.Fin), tipo, ico, texto, accion, alumno: String(r.ID_Alumno), curso: String(r.ID_Curso) };
     })
+    .concat((DATA.trabajos || [])
+      .filter(t => String(t.Estado) === 'En revisión' && fechaMs(t.Enviado) >= desde)
+      .map(t => ({
+        ms: fechaMs(t.Enviado), tipo: 'alerta', ico: '✎',
+        texto: `<strong>${alumnoNombre(t.ID_Alumno)}</strong> envió el trabajo de desarrollo ${esc(t.Numero)} de <strong>${cursoNombre(t.ID_Curso)}</strong>${Number(t.Envios) > 1 ? ' (corregido)' : ''}`,
+        accion: 'Leer y corregir', alumno: String(t.ID_Alumno), curso: String(t.ID_Curso), trabajo: String(t.ID_Trabajo)
+      })))
     .sort((a, b) => b.ms - a.ms)
     .slice(0, 50);
 }
@@ -1349,7 +1366,7 @@ function renderNotificaciones() {
       <span class="ico ${n.tipo}" aria-hidden="true">${n.ico}</span>
       <span>${n.texto}<small>${esc(fechaHoraAdmin(new Date(n.ms).toISOString()))}</small><span class="accion">${n.accion}</span></span>
     </button>`).join('')
-    : `<div class="notif-vacia">No hay novedades de los últimos ${NOTIF_DIAS} días.<br>Acá vas a ver cuando un alumno termine su examen final.</div>`;
+    : `<div class="notif-vacia">No hay novedades de los últimos ${NOTIF_DIAS} días.<br>Acá vas a ver cuando un alumno termine su examen final o envíe un trabajo de desarrollo.</div>`;
   renderNotificaciones.lista = lista;
 }
 
@@ -1375,6 +1392,7 @@ function abrirNotificacion(i) {
   const n = (renderNotificaciones.lista || [])[i];
   toggleNotificaciones(false);
   if (!n) return;
+  if (n.trabajo) { switchTab('examenes'); examenCursoSel = n.curso; renderExamenes(); abrirTrabajo(n.trabajo); return; }
   switchTab('inscripciones');
   const fa = document.getElementById('filtro-insc-alumno'), fc = document.getElementById('filtro-insc-curso');
   if (fa) fa.value = n.alumno;
@@ -1410,6 +1428,13 @@ function preguntasDeExamen(idExamen) {
   return DATA.preguntasEx.filter(p => String(p.ID_Examen) === String(idExamen))
     .sort((a, b) => (Number(a.Orden) || 0) - (Number(b.Orden) || 0));
 }
+function consignasDeExamen(ex) { return ex ? [1, 2, 3].map(n => String(ex['Trabajo_' + n] || '').trim()).filter(Boolean) : []; }
+function trabajosDeCurso(idCurso) { return (DATA.trabajos || []).filter(t => String(t.ID_Curso) === String(idCurso)); }
+function badgeTrabajo(estado) {
+  const e = String(estado || '');
+  const cls = e === 'Aprobado' ? 'aprobado' : e === 'No aprobado' ? 'noaprobado' : e === 'Rehacer' ? 'rehacer' : 'encurso';
+  return `<span class="badge ${cls}">${e === 'Rehacer' ? 'Para rehacer' : esc(e || 'En revisión')}</span>`;
+}
 function resultadosDeExamen(idExamen) { return DATA.resultadosEx.filter(r => String(r.ID_Examen) === String(idExamen)); }
 function esSi(v) { return String(v || '').trim().toLowerCase() === 'si'; }
 function fechaHoraAdmin(v) {
@@ -1430,7 +1455,10 @@ function celdaExamen(insc) {
   const fin = rs.filter(r => String(r.Estado) !== 'En curso');
   const aprob = fin.filter(r => esSi(r.Aprobado));
   const mejor = fin.reduce((m, r) => Math.max(m, Number(r.Puntaje) || 0), 0);
-  if (aprob.length) return `<span class="badge aprobado">Aprobado</span><span class="celda-sub">${mejor}% · intento ${esc(aprob[0].Intento)}</span>`;
+  const nCons = consignasDeExamen(ex).length;
+  const ts = trabajosDeCurso(insc.ID_Curso).filter(t => String(t.ID_Alumno).trim() === String(insc.ID_Alumno).trim());
+  const subTr = nCons ? `<span class="celda-sub">Trabajos: ${ts.filter(t => String(t.Estado) === 'Aprobado').length} de ${nCons} aprobados${ts.some(t => String(t.Estado) === 'En revisión') ? ' · hay para corregir' : ''}</span>` : '';
+  if (aprob.length) return `<span class="badge aprobado">Aprobado</span><span class="celda-sub">${mejor}% · intento ${esc(aprob[0].Intento)}</span>${subTr}`;
   if (fin.length < rs.length) return `<span class="badge encurso">Rindiendo</span><span class="celda-sub">intento ${rs.length} de ${total}</span>`;
   return `<span class="badge noaprobado">No aprobado</span><span class="celda-sub">${mejor}% · ${rs.length} de ${total} intentos</span>`;
 }
@@ -1465,6 +1493,7 @@ function renderExamenes() {
     <div class="section-head">
       <div><h1>Exámenes</h1><p>Examen final de cada curso. El alumno lo puede rendir cuando completó todas las clases.</p></div>
     </div>
+    ${tablaTrabajos((DATA.trabajos || []).filter(t => String(t.Estado) === 'En revisión'), true)}
     <table><thead><tr><th>Curso</th><th>Examen</th><th>Preguntas</th><th>Rindieron</th><th>Aprobaron</th><th></th></tr></thead>
     <tbody>${filas || emptyRow(6, 'Primero cargá un curso.')}</tbody></table>`;
 }
@@ -1508,6 +1537,8 @@ function vistaExamenCurso(curso) {
           <option value="No" ${esSi(ex.Mezclar) ? '' : 'selected'}>No, en el orden cargado</option>
           <option value="Si" ${esSi(ex.Mezclar) ? 'selected' : ''}>Sí, distinto orden a cada alumno</option></select></div>
         <div class="field ancho"><label for="ex_Instrucciones">Instrucciones para el alumno</label><textarea id="ex_Instrucciones" placeholder="Ej: Leé cada pregunta con atención. Hay una sola respuesta correcta.">${v('Instrucciones', '')}</textarea></div>
+        ${[1, 2, 3].map(n => `<div class="field ancho"><label for="ex_Trabajo_${n}">Trabajo de desarrollo ${n} (opcional)</label><textarea id="ex_Trabajo_${n}" placeholder="${n === 1 ? 'Ej: Desarrollá cómo es el tratamiento de una piel con rosácea: evaluación, protocolo, activos y cuidados posteriores.' : 'Dejalo vacío si no hace falta otro trabajo.'}">${v('Trabajo_' + n, '')}</textarea></div>`).join('')}
+        <div class="field-hint ancho" style="grid-column:1/-1">Los trabajos se habilitan cuando la alumna aprueba el examen. El curso queda aprobado cuando están aprobados el examen y todos los trabajos.</div>
       </div>
       <div class="ex-acciones">
         <button class="btn btn-primary" onclick="guardarExamen()">Guardar configuración</button>
@@ -1525,7 +1556,7 @@ function vistaExamenCurso(curso) {
           <div class="num">${i + 1}</div>
           <div class="cuerpo">
             <strong>${esc(p.Pregunta)}</strong>
-            <ol>${['A', 'B', 'C', 'D'].filter(l => String(p['Opcion_' + l] || '').trim()).map(l =>
+            <ol>${LETRAS_EX.filter(l => String(p['Opcion_' + l] || '').trim()).map(l =>
               `<li class="${correctasDe(p).indexOf(l) !== -1 ? 'ok' : ''}"><b>${l})</b>${esc(p['Opcion_' + l])}</li>`).join('')}</ol>
           </div>
           <div class="acciones">
@@ -1534,6 +1565,8 @@ function vistaExamenCurso(curso) {
           </div>
         </div>`).join('') : '<p class="ex-vacio">Todavía no hay preguntas. Tocá “+ Agregar pregunta”.</p>'}
     </div>
+
+    ${consignasDeExamen(ex).length || trabajosDeCurso(curso.ID_Curso).length ? tablaTrabajos(trabajosDeCurso(curso.ID_Curso), false) : ''}
 
     <div class="ex-card">
       <h3>Resultados</h3>
@@ -1548,6 +1581,76 @@ function vistaExamenCurso(curso) {
       }).join('') : emptyRow(6, 'Nadie rindió este examen todavía.')}
       </tbody></table>
     </div>`;
+}
+
+/* ---------- Trabajos de desarrollo: lista y corrección ---------- */
+function tablaTrabajos(lista, soloPendientes) {
+  const orden = { 'En revisión': 0, 'Rehacer': 1, 'No aprobado': 2, 'Aprobado': 3 };
+  const filas = lista.slice().sort((a, b) => ((orden[a.Estado] ?? 9) - (orden[b.Estado] ?? 9)) || String(b.Enviado).localeCompare(String(a.Enviado)));
+  if (soloPendientes && !filas.length) return '';
+  return `<div class="ex-card ${soloPendientes ? 'tr-pendientes' : ''}">
+      <h3>${soloPendientes ? `Trabajos de desarrollo para corregir (${filas.length})` : 'Trabajos de desarrollo'}</h3>
+      <p class="sub">${soloPendientes ? 'Trabajos que enviaron las alumnas y esperan corrección.' : 'Lo que enviaron las alumnas de este curso. Las consignas se cargan en Configuración.'}</p>
+      <table><thead><tr><th>Alumno</th>${soloPendientes ? '<th>Curso</th>' : ''}<th>Trabajo</th><th>Enviado</th><th>Estado</th><th></th></tr></thead><tbody>
+      ${filas.length ? filas.map(t => `<tr><td>${alumnoNombre(t.ID_Alumno)}</td>${soloPendientes ? `<td>${cursoNombre(t.ID_Curso)}</td>` : ''}
+        <td>N° ${esc(t.Numero)}${Number(t.Envios) > 1 ? `<span class="celda-sub">envío ${esc(t.Envios)}</span>` : ''}</td>
+        <td>${esc(fechaHoraAdmin(t.Enviado))}</td><td>${badgeTrabajo(t.Estado)}</td>
+        <td class="actions"><button class="btn ${String(t.Estado) === 'En revisión' ? 'btn-primary' : 'btn-secondary'} btn-small" onclick="abrirTrabajo('${esc(t.ID_Trabajo)}')">${String(t.Estado) === 'En revisión' ? 'Leer y corregir' : 'Ver'}</button></td></tr>`).join('')
+        : emptyRow(soloPendientes ? 6 : 5, 'Todavía no hay trabajos enviados.')}
+      </tbody></table>
+    </div>`;
+}
+
+let trabajoAbierto = null;
+async function abrirTrabajo(idTrabajo) {
+  const t = (DATA.trabajos || []).find(x => String(x.ID_Trabajo) === String(idTrabajo));
+  if (!t) { showToast('El trabajo ya no existe. Actualizá la pantalla.', true); return; }
+  trabajoAbierto = t;
+  const estado = String(t.Estado || '');
+  let botones = '';
+  if (estado === 'En revisión') botones = `
+      <button class="btn btn-aprobar" onclick="corregirTrabajo('Aprobado')">Aprobar</button>
+      <button class="btn btn-danger" onclick="corregirTrabajo('No aprobado')">No aprobar</button>
+      <button class="btn btn-rehacer" onclick="corregirTrabajo('Rehacer')">No aprobar y permitir rehacerlo</button>`;
+  else if (estado === 'No aprobado') botones = `<button class="btn btn-rehacer" onclick="corregirTrabajo('Rehacer')">Permitir que lo rehaga</button>`;
+  const editable = estado === 'En revisión' || estado === 'No aprobado';
+  document.getElementById('form-panel').innerHTML = `
+    <h3>Trabajo de desarrollo ${esc(t.Numero)}</h3>
+    <p class="tr-meta">${alumnoNombre(t.ID_Alumno)} · ${cursoNombre(t.ID_Curso)} · enviado ${esc(fechaHoraAdmin(t.Enviado))}${Number(t.Envios) > 1 ? ` · envío ${esc(t.Envios)}` : ''} · ${badgeTrabajo(estado)}</p>
+    <div class="field"><label>Consigna</label><div class="tr-consigna">${esc(t.Consigna)}</div></div>
+    <div class="field"><label>Lo que escribió la alumna</label><div class="tr-texto" id="tr-texto">Cargando el trabajo…</div>
+      <div class="field-hint" id="tr-link"></div></div>
+    <div class="field"><label for="tr_obs">Observaciones para la alumna</label>
+      <textarea id="tr_obs" ${editable ? '' : 'disabled'} placeholder="Obligatorias si no lo aprobás: la alumna las ve en el aula.">${esc(t.Observaciones || '')}</textarea></div>
+    ${t.Corregido ? `<p class="tr-meta">Corregido ${esc(fechaHoraAdmin(t.Corregido))}${t.Corrigio ? ' por ' + esc(t.Corrigio) : ''}</p>` : ''}
+    <div class="tr-botones">${botones}<button class="btn btn-secondary" onclick="closeForm()">Cerrar</button></div>`;
+  document.getElementById('form-panel').style.display = 'block';
+  document.getElementById('overlay').style.display = 'block';
+  try {
+    const r = await api('leerTrabajo', { idTrabajo: t.ID_Trabajo });
+    if (trabajoAbierto !== t) return;
+    document.getElementById('tr-texto').textContent = r.texto || '(el trabajo está vacío)';
+    if (r.url) document.getElementById('tr-link').innerHTML = `También lo podés abrir como <a href="${esc(r.url)}" target="_blank" rel="noopener">documento de Google</a> para dejar comentarios.`;
+  } catch (e) {
+    const el = document.getElementById('tr-texto');
+    if (el) el.textContent = 'No se pudo cargar el trabajo: ' + e.message;
+  }
+}
+
+async function corregirTrabajo(decision) {
+  const t = trabajoAbierto;
+  if (!t) return;
+  const obs = (document.getElementById('tr_obs') || {}).value || '';
+  if (decision !== 'Aprobado' && !obs.trim()) { showToast('Escribí las observaciones para la alumna antes de no aprobarlo.', true); return; }
+  const textos = { 'Aprobado': '¿Aprobar este trabajo?', 'No aprobado': '¿Marcar el trabajo como no aprobado? La alumna va a ver tus observaciones.',
+    'Rehacer': '¿Permitir que la alumna lo rehaga? Va a ver tus observaciones y podrá enviarlo de nuevo.' };
+  if (!confirm(textos[decision])) return;
+  try {
+    await api('corregirTrabajo', { idTrabajo: t.ID_Trabajo, decision, observaciones: obs, estadoEsperado: String(t.Estado || '') });
+    showToast(decision === 'Aprobado' ? 'Trabajo aprobado.' : decision === 'Rehacer' ? 'Listo: la alumna ya puede rehacer el trabajo.' : 'Trabajo marcado como no aprobado.');
+    closeForm();
+    renderExamenes(); renderInscripciones(); actualizarCampana();
+  } catch (e) { showToast('Error: ' + e.message, true); }
 }
 
 async function crearExamen(idCurso) {
@@ -1565,6 +1668,7 @@ async function guardarExamen(nuevoEstado) {
   const data = {
     Titulo: val('Titulo'), Nota_Minima: val('Nota_Minima'), Intentos_Max: val('Intentos_Max'),
     Tiempo_Min: val('Tiempo_Min'), Mezclar: val('Mezclar'), Instrucciones: val('Instrucciones'),
+    Trabajo_1: val('Trabajo_1'), Trabajo_2: val('Trabajo_2'), Trabajo_3: val('Trabajo_3'),
     Estado: nuevoEstado || ex.Estado || 'Borrador'
   };
   if (nuevoEstado === 'Publicado' && !preguntasDeExamen(ex.ID_Examen).length) {
@@ -1590,9 +1694,10 @@ async function borrarExamen() {
 }
 
 let editandoPreguntaEx = null;
+const LETRAS_EX = ['A', 'B', 'C', 'D', 'E', 'F'];   // hasta 6 opciones por pregunta
 // "A,C" → ['A','C'] (una pregunta puede tener una o varias respuestas correctas)
 function correctasDe(p) {
-  return String((p && p.Correcta) || '').toUpperCase().split(/[\s,;]+/).filter(l => ['A', 'B', 'C', 'D'].indexOf(l) !== -1);
+  return String((p && p.Correcta) || '').toUpperCase().split(/[\s,;]+/).filter(l => LETRAS_EX.indexOf(l) !== -1);
 }
 function formPreguntaEx(row) {
   const ex = examenDeCurso(examenCursoSel);
@@ -1605,14 +1710,14 @@ function formPreguntaEx(row) {
   const filaOpcion = l => `<div class="opcion-fila">
       <input type="checkbox" name="pex_correcta" value="${l}" id="pex_ok_${l}" ${correctas.indexOf(l) !== -1 ? 'checked' : ''} aria-label="La opción ${l} es correcta">
       <span class="letra">${l}</span>
-      <input type="text" id="pex_${l}" value="${esc(p ? p['Opcion_' + l] : '')}" placeholder="${l === 'C' || l === 'D' ? 'Opcional' : 'Texto de la opción ' + l}">
+      <input type="text" id="pex_${l}" value="${esc(p ? p['Opcion_' + l] : '')}" placeholder="Opción ${l} (opcional)">
     </div>`;
   document.getElementById('form-panel').innerHTML = `
     <h3>${p ? 'Editar' : 'Nueva'} pregunta</h3>
     <div class="field"><label for="pex_Pregunta">Pregunta</label><textarea id="pex_Pregunta">${esc(p ? p.Pregunta : '')}</textarea></div>
     <div class="field"><label>Opciones</label>
-      ${['A', 'B', 'C', 'D'].map(filaOpcion).join('')}
-      <div class="field-hint">Tildá la respuesta correcta. Si hay más de una correcta, tildalas todas: la alumna suma la pregunta solo si elige exactamente esas. C y D son opcionales.</div>
+      ${LETRAS_EX.map(filaOpcion).join('')}
+      <div class="field-hint">Completá entre 2 y 6 opciones, en orden desde la A; las que quedan vacías no se muestran. Tildá la correcta; si hay más de una, tildalas todas: la alumna suma la pregunta solo si elige exactamente esas.</div>
     </div>
     <div class="field"><label for="pex_Orden">Orden</label><input id="pex_Orden" type="number" min="1" value="${esc(orden)}"></div>
     <div class="form-actions">
@@ -1629,11 +1734,13 @@ async function guardarPreguntaEx() {
   if (!ex) return;
   const val = id => document.getElementById('pex_' + id).value.trim();
   const marcadas = Array.from(document.querySelectorAll('input[name="pex_correcta"]:checked')).map(x => x.value);
-  const data = { Pregunta: val('Pregunta'), Opcion_A: val('A'), Opcion_B: val('B'), Opcion_C: val('C'), Opcion_D: val('D'),
-    Correcta: marcadas.join(','), Orden: val('Orden') };
+  const data = { Pregunta: val('Pregunta'), Correcta: marcadas.join(','), Orden: val('Orden') };
+  LETRAS_EX.forEach(l => { data['Opcion_' + l] = val(l); });
   if (!data.Pregunta) { showToast('Escribí la pregunta.', true); return; }
-  if (!data.Opcion_A || !data.Opcion_B) { showToast('Completá al menos las opciones A y B.', true); return; }
-  if (!data.Opcion_C && data.Opcion_D) { showToast('Si usás la opción D, completá también la C.', true); return; }
+  const llenas = LETRAS_EX.filter(l => data['Opcion_' + l]);
+  if (llenas.length < 2) { showToast('Completá al menos 2 opciones.', true); return; }
+  const hueco = LETRAS_EX.find((l, i) => !data['Opcion_' + l] && LETRAS_EX.slice(i + 1).some(m => data['Opcion_' + m]));
+  if (hueco) { showToast('Completá las opciones en orden: la ' + hueco + ' está vacía y hay otras después.', true); return; }
   if (!marcadas.length) { showToast('Tildá al menos una respuesta correcta.', true); return; }
   if (marcadas.some(l => !data['Opcion_' + l])) { showToast('Tildaste como correcta una opción que está vacía.', true); return; }
   try {
@@ -1670,7 +1777,7 @@ function vistaPreviaExamen() {
     <p style="color:var(--ink-soft);font-size:13.5px;margin:0 0 18px">${pregs.length} preguntas · ${tiempo ? tiempo + ' minutos' : 'sin límite de tiempo'} · se aprueba con ${esc(ex.Nota_Minima)}%</p>
     ${ex.Instrucciones ? `<p style="white-space:pre-wrap;font-size:14px;margin:0 0 20px">${esc(ex.Instrucciones)}</p>` : ''}
     ${pregs.map((p, i) => `<div class="previa-preg"><p>${i + 1}. ${esc(p.Pregunta)}</p>
-      ${['A', 'B', 'C', 'D'].filter(l => String(p['Opcion_' + l] || '').trim()).map(l =>
+      ${LETRAS_EX.filter(l => String(p['Opcion_' + l] || '').trim()).map(l =>
         `<label><input type="radio" name="prev_${i}">${esc(p['Opcion_' + l])}</label>`).join('')}</div>`).join('')}
     <div class="form-actions"><button class="btn btn-secondary" onclick="closeForm()">Cerrar vista previa</button></div>`;
   document.getElementById('form-panel').style.display = 'block';
