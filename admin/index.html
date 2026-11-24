@@ -422,6 +422,10 @@
     .contenido-item:hover{border-color:var(--rose);}
     th.sortable:hover{background:var(--rose-soft);}
   }
+.tr-label{display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap;}
+.tr-vaciar{background:none; border:none; padding:0; font:inherit; font-size:11px; letter-spacing:.08em; text-transform:none; color:#B5483F; text-decoration:underline; cursor:pointer;}
+.zona-peligro{border-color:#E8C4C0;}
+.zona-peligro h3{color:#B5483F;}
 </style>
 </head>
 <body>
@@ -1537,13 +1541,18 @@ function vistaExamenCurso(curso) {
           <option value="No" ${esSi(ex.Mezclar) ? '' : 'selected'}>No, en el orden cargado</option>
           <option value="Si" ${esSi(ex.Mezclar) ? 'selected' : ''}>Sí, distinto orden a cada alumno</option></select></div>
         <div class="field ancho"><label for="ex_Instrucciones">Instrucciones para el alumno</label><textarea id="ex_Instrucciones" placeholder="Ej: Leé cada pregunta con atención. Hay una sola respuesta correcta.">${v('Instrucciones', '')}</textarea></div>
-        ${[1, 2, 3].map(n => `<div class="field ancho"><label for="ex_Trabajo_${n}">Trabajo de desarrollo ${n} (opcional)</label><textarea id="ex_Trabajo_${n}" placeholder="${n === 1 ? 'Ej: Desarrollá cómo es el tratamiento de una piel con rosácea: evaluación, protocolo, activos y cuidados posteriores.' : 'Dejalo vacío si no hace falta otro trabajo.'}">${v('Trabajo_' + n, '')}</textarea></div>`).join('')}
-        <div class="field-hint ancho" style="grid-column:1/-1">Los trabajos se habilitan cuando la alumna aprueba el examen. El curso queda aprobado cuando están aprobados el examen y todos los trabajos.</div>
+        ${[1, 2, 3].map(n => `<div class="field ancho"><label for="ex_Trabajo_${n}" class="tr-label">Trabajo de desarrollo ${n} (opcional)<button type="button" class="tr-vaciar" onclick="vaciarConsigna(${n})">Quitar esta consigna</button></label><textarea id="ex_Trabajo_${n}" placeholder="${n === 1 ? 'Ej: Desarrollá cómo es el tratamiento de una piel con rosácea: evaluación, protocolo, activos y cuidados posteriores.' : 'Dejalo vacío si no hace falta otro trabajo.'}">${v('Trabajo_' + n, '')}</textarea></div>`).join('')}
+        <div class="field-hint ancho" style="grid-column:1/-1">Los trabajos se habilitan cuando la alumna aprueba el examen. El curso queda aprobado cuando están aprobados el examen y todos los trabajos. Para quitar una consigna, vaciá su cuadro y tocá «Guardar configuración».</div>
       </div>
       <div class="ex-acciones">
         <button class="btn btn-primary" onclick="guardarExamen()">Guardar configuración</button>
-        <button class="btn btn-danger" onclick="borrarExamen()">Borrar examen</button>
       </div>
+    </div>
+
+    <div class="ex-card zona-peligro">
+      <h3>Eliminar el examen completo</h3>
+      <p class="sub">Borra el examen entero con todas sus preguntas (${preguntasDeExamen(ex.ID_Examen).length}). No se puede deshacer. Para quitar solo una consigna de trabajo, usá «Quitar esta consigna» más arriba.</p>
+      <button class="btn btn-danger" onclick="borrarExamen()">Eliminar examen y preguntas</button>
     </div>
 
     <div class="ex-card">
@@ -1682,10 +1691,23 @@ async function guardarExamen(nuevoEstado) {
   } catch (e) { showToast('Error al guardar: ' + e.message, true); }
 }
 
+function vaciarConsigna(n) {
+  const el = document.getElementById('ex_Trabajo_' + n);
+  if (!el) return;
+  el.value = '';
+  el.focus();
+  showToast('Consigna vaciada. Tocá «Guardar configuración» para que se aplique.');
+}
+
 async function borrarExamen() {
   const ex = examenDeCurso(examenCursoSel);
   if (!ex) return;
-  if (!confirm('¿Borrar este examen y todas sus preguntas? Los resultados de los alumnos que ya rindieron quedan guardados en la planilla.')) return;
+  const cant = preguntasDeExamen(ex.ID_Examen).length;
+  const escrito = prompt('Esto ELIMINA el examen completo y sus ' + cant + ' preguntas. No se puede deshacer.\n\n' +
+    'Si solo querés quitar una consigna de trabajo, cancelá y usá «Quitar esta consigna».\n\n' +
+    'Para confirmar, escribí ELIMINAR:');
+  if (escrito === null) return;
+  if (String(escrito).trim().toUpperCase() !== 'ELIMINAR') { showToast('No se eliminó: tenías que escribir ELIMINAR.', true); return; }
   try {
     await api('deleteExamen', { row: ex._row, expect: expectDe('examenes', ex._row) });
     showToast('Examen borrado.');
