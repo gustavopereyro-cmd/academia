@@ -860,7 +860,7 @@
   ['nueva-pass', 'nueva-pass2'].forEach(id => document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') guardarNuevaClave(); }));
 
   // Panel del administrador: mismo login, otro servidor
-  const ADMIN_API_URL = 'https://script.google.com/macros/s/AKfycbzyGiSnozdfWIIVSy1PY25WqgGS1l8MSssblAv3diG31t_TOCeap_YO-jfeSg7TIY2Q/exec';
+  const ADMIN_API_URL = 'https://script.google.com/macros/s/AKfycbwSBUMpftVRwdK2HGsuaN25ROKgJMwHELfKWPrf9uoqcaR-D8C9HeZWJ1urjtQr4rPS/exec';
   async function loginComoAdmin(email, password) {
     try {
       const res = await fetch(ADMIN_API_URL, {
