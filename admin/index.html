@@ -426,6 +426,14 @@
 .tr-vaciar{background:none; border:none; padding:0; font:inherit; font-size:11px; letter-spacing:.08em; text-transform:none; color:#B5483F; text-decoration:underline; cursor:pointer;}
 .zona-peligro{border-color:#E8C4C0;}
 .zona-peligro h3{color:#B5483F;}
+.pc-card{border:1px solid #CFE0C7; background:#F7FBF5;}
+.pc-card table{background:#fff;}
+.pc-practico{display:flex; gap:6px; align-items:center; flex-wrap:wrap; min-width:250px;}
+.pc-practico input{width:70px; padding:7px 8px; font-size:13px;}
+.pc-practico select{width:auto; padding:7px 8px; font-size:13px;}
+.pc-tipo{width:auto; padding:7px 8px; font-size:13px;}
+.pc-ok{color:#4F7942; font-weight:500;}
+.pc-falta{color:#B3452C; font-weight:500;}
 </style>
 </head>
 <body>
@@ -556,6 +564,7 @@
            <button class="btn btn-primary" id="btn-emitir" onclick="emitirPendientes()">Emitir pendientes</button>
           </div>
         </div>
+        <div id="para-certificar"></div>
         <div class="filter-bar">
           <div class="filter-item"><label>Alumno</label><select id="filtro-cert-alumno" onchange="renderCertificados()"><option value="">Todos los alumnos</option></select></div>
           <div class="filter-item"><label>Curso</label><select id="filtro-cert-curso" onchange="renderCertificados()"><option value="">Todos los cursos</option></select></div>
@@ -1273,10 +1282,128 @@ function celdaAvance(insc) {
 }
 
 function renderCertificados() {
+  renderParaCertificar();
   const tbody=document.getElementById('tbody-certificados'); if(!tbody)return; const fa=document.getElementById('filtro-cert-alumno')?.value||''; const fc=document.getElementById('filtro-cert-curso')?.value||''; const arr=DATA.egresados.filter(e=>(!fa||String(e.Nombre_Alumno)===fa)&&(!fc||String(e.Curso)===fc));
   if(!arr.length) tbody.innerHTML=emptyRow(7,DATA.egresados.length?'No se encontraron certificados.':'Todavía no hay certificados cargados.'); else tbody.innerHTML=arr.map(e=>{const estado=String(e.Estado||'Pendiente').trim();const pdf=e.URL_PDF?`<a href="${esc(e.URL_PDF)}" target="_blank" rel="noopener" class="btn btn-success">Ver PDF</a>`:'—';return `<tr><td>${esc(e.Certificado)}</td><td>${esc(e.Nombre_Alumno)}</td><td>${esc(e.Curso)}</td><td>${esc(e.Tipo)}</td><td><span class="badge ${estado.toLowerCase()}">${esc(estado)}</span></td><td>${pdf}</td><td class="actions"><button class="btn btn-secondary btn-small" onclick="enviarPorMail(${e._row})">Enviar</button><button class="btn btn-secondary btn-small" onclick="openFormEgresadoEditar(${e._row})">Editar</button><button class="btn btn-danger" onclick="removeItem('Egresado','egresados',${e._row})">Borrar</button></td></tr>`;}).join('');
   const c=document.getElementById('contador-certificados');if(c)c.textContent=`${arr.length} de ${DATA.egresados.length} certificados.`;
 }
+/* ============================================================
+   PARA CERTIFICAR: alumnas con el examen teórico y todos los trabajos
+   aprobados que todavía no están en la lista de egresados.
+   El administrador carga el práctico y decide cuándo pasarlas a certificar.
+   ============================================================ */
+function normNombre(v) { return String(v || '').trim().toLowerCase(); }
+function yaEsEgresada(dni, nombreCurso) {
+  const d = String(dni || '').replace(/\./g, '').trim();
+  return DATA.egresados.some(e => String(e.DNI || '').replace(/\./g, '').trim() === d && normNombre(e.Curso) === normNombre(nombreCurso));
+}
+function candidatasCertificar() {
+  const vistos = {};
+  const lista = [];
+  (DATA.inscripciones || []).forEach(insc => {
+    const idA = String(insc.ID_Alumno || '').trim(), idC = String(insc.ID_Curso || '').trim();
+    if (!idA || !idC || vistos[idA + '|' + idC]) return;
+    const ex = examenDeCurso(idC);
+    if (!ex) return;
+    const aprobados = resultadosDeExamen(ex.ID_Examen)
+      .filter(r => String(r.ID_Alumno).trim() === idA && String(r.Estado) !== 'En curso' && esSi(r.Aprobado));
+    if (!aprobados.length) return;
+    const nCons = consignasDeExamen(ex).length;
+    const ts = trabajosDeCurso(idC).filter(t => String(t.ID_Alumno).trim() === idA);
+    const tsOk = ts.filter(t => String(t.Estado) === 'Aprobado');
+    if (nCons && tsOk.length < nCons) return;                 // faltan trabajos aprobados
+    const curso = DATA.cursos.find(c => String(c.ID_Curso) === idC);
+    const nombreCurso = curso ? String(curso.Nombre || '') : idC;
+    if (yaEsEgresada(idA, nombreCurso)) return;               // ya está en la lista de egresados
+    vistos[idA + '|' + idC] = true;
+    const fechas = aprobados.map(r => fechaMs(r.Fin)).concat(tsOk.map(t => fechaMs(t.Corregido)));
+    lista.push({ insc, ex, nombreCurso, idA, idC, puntaje: Math.max.apply(null, aprobados.map(r => Number(r.Puntaje) || 0)),
+      nCons, listoMs: Math.max.apply(null, fechas.concat([0])) });
+  });
+  return lista.sort((a, b) => a.listoMs - b.listoMs);
+}
+
+function renderParaCertificar() {
+  const cont = document.getElementById('para-certificar');
+  if (!cont) return;
+  const lista = candidatasCertificar();
+  if (!lista.length) { cont.innerHTML = ''; return; }
+  cont.innerHTML = `<div class="ex-card pc-card">
+      <h3>Para certificar (${lista.length})</h3>
+      <p class="sub">Alumnas que aprobaron el examen teórico y los trabajos. Cargá el práctico y, cuando lo decidas, pasalas a certificar: quedan como Pendiente en la lista de abajo y se emiten con “Emitir pendientes”.</p>
+      <table><thead><tr><th>Alumna</th><th>Curso</th><th>Listo desde</th><th>Teórico y trabajos</th><th>Práctico</th><th>Tipo</th><th></th></tr></thead><tbody>
+      ${lista.map(c => {
+        const r = c.insc._row;
+        const nota = String(c.insc.Nota_Practico ?? '').trim();
+        const res = String(c.insc.Resultado_Practico || '').trim();
+        return `<tr>
+          <td>${alumnoNombre(c.idA)}<span class="celda-sub">DNI ${esc(c.idA)}</span></td>
+          <td>${esc(c.nombreCurso)}</td>
+          <td>${c.listoMs ? esc(formatearFechaAdmin(new Date(c.listoMs))) : '—'}</td>
+          <td><span class="pc-ok">✓ Teórico ${esc(c.puntaje)}%</span><span class="celda-sub">${c.nCons ? '✓ ' + c.nCons + ' de ' + c.nCons + ' trabajos aprobados' : 'Sin trabajos de desarrollo'}</span></td>
+          <td><div class="pc-practico">
+              <input id="pc_nota_${r}" type="text" value="${esc(nota)}" placeholder="Nota" aria-label="Nota del práctico">
+              <select id="pc_res_${r}" aria-label="Resultado del práctico">
+                ${['', 'Aprobado', 'Desaprobado'].map(o => `<option value="${o}" ${o === res ? 'selected' : ''}>${o || 'Sin resultado'}</option>`).join('')}
+              </select>
+              <button class="btn btn-secondary btn-small" onclick="guardarPracticoCert(${r})">Guardar</button>
+            </div>
+            ${res === 'Aprobado' ? '' : `<span class="celda-sub pc-falta">${res ? 'Práctico desaprobado' : 'Falta el práctico'}</span>`}</td>
+          <td><select id="pc_tipo_${r}" class="pc-tipo" aria-label="Tipo de certificado"><option value="Diploma">Diploma</option><option value="Seminario">Seminario</option></select></td>
+          <td class="actions"><button class="btn btn-primary btn-small" onclick="pasarACertificar(${r})">Pasar a certificar</button></td>
+        </tr>`;
+      }).join('')}
+      </tbody></table>
+    </div>`;
+}
+
+async function guardarPracticoCert(row) {
+  const nota = document.getElementById('pc_nota_' + row).value.trim();
+  const res = document.getElementById('pc_res_' + row).value;
+  const insc = DATA.inscripciones.find(x => x._row === row);
+  if (!insc) { showToast('La inscripción ya no existe. Actualizá la pantalla.', true); return; }
+  const data = { Nota_Practico: nota, Resultado_Practico: res };
+  if ((nota || res) && !insc.Fecha_Practico) data.Fecha_Practico = hoyISO();
+  try {
+    await api('updateInscripcion', { row, expect: expectDe('inscripciones', row), data });
+    showToast('Práctico guardado.');
+    renderCertificados(); renderInscripciones();
+  } catch (e) { showToast('Error al guardar el práctico: ' + e.message, true); }
+}
+
+async function pasarACertificar(row) {
+  const c = candidatasCertificar().find(x => x.insc._row === row);
+  if (!c) { showToast('Esta alumna ya no está para certificar. Actualizá la pantalla.', true); return; }
+  const alumna = DATA.alumnos.find(a => String(a.ID_Alumno).trim() === c.idA);
+  const nombre = alumna ? String(alumna.Nombre || '').trim() : '';
+  if (!c.idA) { showToast('Esta alumna no tiene DNI cargado. Completalo en Alumnos antes de certificar.', true); return; }
+  const tipo = document.getElementById('pc_tipo_' + row).value;
+  const res = String(c.insc.Resultado_Practico || '').trim();
+  let motivo = '';
+  if (res !== 'Aprobado') {
+    motivo = prompt(`El práctico de ${nombre} ${res ? 'está desaprobado' : 'no está cargado'}.\n\n` +
+      'Si igual querés certificarla (aprobación parcial), escribí el motivo. Queda anotado en las observaciones del práctico de su inscripción.');
+    if (motivo === null) return;
+    motivo = motivo.trim();
+    if (!motivo) { showToast('Para una aprobación parcial tenés que escribir el motivo.', true); return; }
+  } else if (!confirm(`¿Pasar a ${nombre} a certificar (${tipo} de ${c.nombreCurso})?\n\nSe le asigna el número de acta y queda Pendiente hasta que toques “Emitir pendientes”.`)) return;
+
+  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const hoy = new Date();
+  try {
+    if (motivo) {
+      const previa = String(c.insc.Obs_Practico || '').trim();
+      const nota = 'Aprobación parcial (' + hoyISO() + '): ' + motivo;
+      await api('updateInscripcion', { row, expect: expectDe('inscripciones', row), data: { Obs_Practico: previa ? previa + '\n' + nota : nota } });
+    }
+    const r = await api('addEgresado', { data: {
+      Fecha: meses[hoy.getMonth()] + ' ' + hoy.getFullYear(), Nombre_Alumno: nombre, Curso: c.nombreCurso,
+      DNI: c.idA, Tipo: tipo, Estado: 'Pendiente' } });
+    showToast(`${nombre} pasó a certificar (acta ${r.acta || ''}). Queda Pendiente hasta que emitas.`);
+    renderCertificados(); renderInscripciones();
+  } catch (e) { showToast('No se pudo pasar a certificar: ' + e.message, true); }
+}
+
 /* ============================================================
    EXÁMENES FINALES (uno por curso, multiple choice)
    ============================================================ */
